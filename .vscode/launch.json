@@ -1,0 +1,30 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach to Node (9229)",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "sourceMaps": true,
+      "protocol": "inspector",
+      "skipFiles": ["<node_internals>/**"],
+      "outFiles": ["${workspaceFolder}/dist/**/*.js", "${workspaceFolder}/src/**/*.ts"]
+    },
+    {
+      "name": "Launch dev:debug",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:debug"],
+      "console": "integratedTerminal",
+      "restart": true,
+      "sourceMaps": true,
+      "protocol": "inspector",
+      "skipFiles": ["<node_internals>/**"],
+      "outFiles": ["${workspaceFolder}/dist/**/*.js", "${workspaceFolder}/src/**/*.ts"]
+    }
+  ]
+}
+
