@@ -5,7 +5,7 @@ import { authenticate } from '../middlewares/authMiddleware.js';
 const router = Router();
 
 router.use(authenticate);
-router.post('/', createContributionHandler);
+router.post('/', authenticate , createContributionHandler);
 router.get('/', listContributionsHandler);
 
 export default router;
