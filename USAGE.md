@@ -95,7 +95,8 @@ Content-Type: application/json
   "name": "John Doe",
   "email": "john.doe@example.com",
   "phone": "1234567890",
-  "password": "password123"
+  "password": "password123",
+  "adminSecretCode": "your-admin-secret-code"
 }
 ```
 
@@ -104,6 +105,7 @@ Content-Type: application/json
 - `email` (optional): Valid email format
 - `phone` (optional): String, maximum 15 characters
 - `password` (required): String, minimum 8 characters
+- `adminSecretCode` (optional): If provided and matches `ADMIN_SECRET_CODE` from environment, user will be registered as admin
 
 **Example Request (Postman):**
 - Method: `POST`
@@ -129,10 +131,13 @@ Content-Type: application/json
     "email": "john.doe@example.com",
     "phone": "1234567890",
     "joinedOn": "2024-01-15",
+    "isAdmin": false,
     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
   }
 }
 ```
+
+**Note:** If `adminSecretCode` is provided and matches the server's `ADMIN_SECRET_CODE`, `isAdmin` will be `true`.
 
 **Error Responses:**
 - `400`: Validation error (invalid email format, password too short, etc.)
@@ -186,7 +191,8 @@ Content-Type: application/json
       "name": "John Doe",
       "email": "john.doe@example.com",
       "phone": "1234567890",
-      "joinedOn": "2024-01-15"
+      "joinedOn": "2024-01-15",
+      "isAdmin": false
     }
   }
 }
@@ -195,6 +201,68 @@ Content-Type: application/json
 **Error Responses:**
 - `400`: Validation error (invalid email format, etc.)
 - `401`: Invalid credentials (wrong email or password)
+
+---
+
+#### 3. Upgrade to Admin
+
+**Endpoint:** `POST /api/auth/upgrade-to-admin`
+
+**Authentication:** Required (Bearer Token)
+
+**Request Headers:**
+```
+Authorization: Bearer <your-jwt-token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "adminSecretCode": "your-admin-secret-code"
+}
+```
+
+**Field Requirements:**
+- `adminSecretCode` (required): Must match `ADMIN_SECRET_CODE` from environment variables
+
+**Example Request (Postman):**
+- Method: `POST`
+- URL: `http://localhost:4000/api/auth/upgrade-to-admin`
+- Authorization: Bearer Token (paste your token)
+- Headers: `Content-Type: application/json`
+- Body (raw JSON):
+```json
+{
+  "adminSecretCode": "your-admin-secret-code"
+}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "member": {
+      "memberId": 1,
+      "name": "John Doe",
+      "email": "john.doe@example.com",
+      "phone": "1234567890",
+      "joinedOn": "2024-01-15",
+      "isAdmin": true
+    }
+  }
+}
+```
+
+**Note:** A new token is returned with updated `isAdmin` status. Use this new token for subsequent requests.
+
+**Error Responses:**
+- `400`: Member is already an admin
+- `403`: Invalid admin secret code
+- `401`: Missing or invalid token
+- `404`: Member not found
 
 ---
 
@@ -700,8 +768,9 @@ Authorization: Bearer {{token}}
 
 | Endpoint | Method | Auth Required | Description |
 |----------|--------|---------------|-------------|
-| `/api/auth/register` | POST | No | Register new member |
+| `/api/auth/register` | POST | No | Register new member (can include adminSecretCode) |
 | `/api/auth/login` | POST | No | Login and get token |
+| `/api/auth/upgrade-to-admin` | POST | Yes | Upgrade existing user to admin |
 | `/api/members` | GET | Yes | List all members |
 | `/api/causes` | GET | No | List all causes |
 | `/api/causes` | POST | Yes | Create a cause |

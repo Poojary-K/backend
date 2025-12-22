@@ -12,6 +12,7 @@ export const registerSchema = z.object({
     .optional(),
   phone: z.string().max(15).trim().optional(),
   password: z.string().min(8),
+  adminSecretCode: z.string().trim().optional(),
 });
 
 /**

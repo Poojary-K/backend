@@ -1,5 +1,6 @@
 import express from 'express';
 import helmet from 'helmet';
+import cors from 'cors';
 import routes from './routes/index.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { rateLimiter } from './middlewares/rateLimiter.js';
@@ -9,6 +10,15 @@ import { rateLimiter } from './middlewares/rateLimiter.js';
  */
 export const createApp = () => {
   const app = express();
+  
+  // CORS configuration - allow requests from Angular dev server
+  app.use(cors({
+    origin: ['http://localhost:4200', 'http://localhost:3000', 'http://10.213.216.1:4200'], // Angular dev server
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  }));
+  
   app.use(helmet());
   app.use(express.json());
   

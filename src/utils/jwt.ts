@@ -5,6 +5,7 @@ import { getConfig } from '../config/env.js';
 export interface AuthTokenPayload extends JWTLibPayload {
   readonly memberId: number;
   readonly email: string;
+  readonly isAdmin?: boolean;
 }
 
 const { jwtSecret, jwtExpiresIn } = getConfig();
