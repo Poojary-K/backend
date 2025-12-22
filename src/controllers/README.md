@@ -133,3 +133,4 @@ When testing controllers:
 - **Services** (`services/`) - Contain the business logic called by controllers
 - **Middlewares** (`middlewares/`) - Handle authentication and validation before controllers
 
+

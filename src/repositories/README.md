@@ -187,3 +187,4 @@ When testing repositories:
 - **Database Config** (`config/database.ts`) - Provides `query()` and `getClient()` functions
 - **Services** (`services/`) - Call repository functions to access data
 
+

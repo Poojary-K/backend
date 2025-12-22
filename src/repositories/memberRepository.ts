@@ -45,6 +45,15 @@ export const findMemberByEmail = async (email: string): Promise<MemberRecord | n
 };
 
 /**
+ * Retrieves a member by ID.
+ */
+export const findMemberById = async (id: number): Promise<MemberRecord | null> => {
+  const text = `SELECT memberid, name, email, phone, password, joinedon FROM members WHERE memberid = $1 LIMIT 1;`;
+  const result = await query<MemberRecord>(text, [id]);
+  return result.rows.at(0) ?? null;
+};
+
+/**
  * Fetches all members ordered by join date.
  */
 export const listMembers = async (): Promise<MemberRecord[]> => {

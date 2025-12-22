@@ -141,3 +141,4 @@ describe('hashPassword', () => {
 - **Auth Service** (`services/authService.ts`) - Uses `signToken` and password utilities
 - **Config** (`config/env.ts`) - Provides configuration for utilities
 
+

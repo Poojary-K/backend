@@ -1,25 +1,15 @@
 import type { Request, Response, NextFunction } from 'express';
-import { z } from 'zod';
 import { recordContribution, getContributions } from '../services/contributionService.js';
-
-const contributionSchema = z.object({
-  memberId: z.number().int().positive(),
-  amount: z.number().positive(),
-  contributedDate: z.string().transform((value, ctx) => {
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) {
-      ctx.addIssue({ code: 'custom', message: 'Invalid contributedDate' });
-    }
-    return parsed;
-  }),
-});
+import type { z } from 'zod';
+import type { contributionSchema } from '../schemas/contributionSchemas.js';
 
 /**
  * Handles the creation of contributions.
+ * Request body is validated by validateRequest middleware.
  */
 export const createContributionHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const payload = contributionSchema.parse(req.body);
+    const payload = req.body as z.infer<typeof contributionSchema>;
     const contribution = await recordContribution(payload);
     res.status(201).json({ success: true, data: contribution });
   } catch (error) {

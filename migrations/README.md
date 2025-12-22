@@ -175,3 +175,4 @@ exports.up = (pgm) => {
 - [node-pg-migrate Documentation](https://salsita.github.io/node-pg-migrate/)
 - [PostgreSQL Migration Best Practices](https://www.postgresql.org/docs/current/ddl-alter.html)
 
+

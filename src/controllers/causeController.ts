@@ -1,19 +1,15 @@
 import type { Request, Response, NextFunction } from 'express';
-import { z } from 'zod';
 import { getCauses, registerCause } from '../services/causeService.js';
-
-const causeSchema = z.object({
-  title: z.string().min(1),
-  description: z.string().max(1000).optional(),
-  amount: z.number().nonnegative().optional(),
-});
+import type { z } from 'zod';
+import type { causeSchema } from '../schemas/causeSchemas.js';
 
 /**
  * Creates a fundraising cause.
+ * Request body is validated by validateRequest middleware.
  */
 export const createCauseHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const payload = causeSchema.parse(req.body);
+    const payload = req.body as z.infer<typeof causeSchema>;
     const cause = await registerCause(payload);
     res.status(201).json({ success: true, data: cause });
   } catch (error) {

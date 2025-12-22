@@ -4,6 +4,7 @@ import {
   listContributions,
   type ContributionRecord,
 } from '../repositories/contributionRepository.js';
+import { findMemberById } from '../repositories/memberRepository.js';
 
 export interface ContributionInput {
   readonly memberId: number;
@@ -18,6 +19,13 @@ export const recordContribution = async (input: ContributionInput): Promise<Cont
   if (input.amount <= 0) {
     throw new HttpError('Contribution amount must be positive', 400);
   }
+  
+  // Validate that member exists before creating contribution
+  const member = await findMemberById(input.memberId);
+  if (!member) {
+    throw new HttpError(`Member with ID ${input.memberId} not found`, 404);
+  }
+  
   return createContribution(input);
 };
 

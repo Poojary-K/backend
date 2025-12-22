@@ -35,6 +35,11 @@ export const errorHandler = (error: unknown, _req: Request, res: Response, _next
     res.status(409).json({ success: false, message: 'Resource already exists', details: error.detail ?? null });
     return;
   }
+  // Database foreign key constraint -> 404 not found
+  if (isPgError(error) && error.code === '23503') {
+    res.status(404).json({ success: false, message: 'Referenced resource not found', details: error.detail ?? null });
+    return;
+  }
   const fallback = error instanceof Error ? error : new Error('Unknown error');
   // eslint-disable-next-line no-console
   console.error(fallback);
