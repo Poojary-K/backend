@@ -11,7 +11,7 @@ import {
   updateMember,
   deleteMember,
   type MemberRecord,
-  type UpdateMemberInput,
+  type UpdateMemberInput as UpdateMemberRepositoryInput,
 } from '../repositories/memberRepository.js';
 
 export interface RegisterMemberInput {
@@ -25,6 +25,14 @@ export interface RegisterMemberInput {
 export interface LoginInput {
   readonly email: string;
   readonly password: string;
+}
+
+export interface UpdateMemberPayload {
+  readonly name?: string | undefined;
+  readonly email?: string | undefined;
+  readonly phone?: string | undefined;
+  readonly isAdmin?: boolean | undefined;
+  readonly is_admin?: boolean | undefined;
 }
 
 /**
@@ -171,14 +179,15 @@ export const getMemberById = async (id: number): Promise<MemberRecord> => {
 /**
  * Updates a member.
  */
-export const updateMemberById = async (id: number, input: UpdateMemberInput): Promise<MemberRecord> => {
+export const updateMemberById = async (id: number, input: UpdateMemberPayload): Promise<MemberRecord> => {
   try {
-    // Map isAdmin (from API) to is_admin (for repository)
-    const repositoryInput = {
+    // Map API input to repository format, accepting legacy is_admin payloads.
+    const isAdmin = input.isAdmin ?? input.is_admin;
+    const repositoryInput: UpdateMemberRepositoryInput = {
       name: input.name,
       email: input.email,
       phone: input.phone,
-      is_admin: input.isAdmin,
+      is_admin: isAdmin,
     };
     
     const updated = await updateMember(id, repositoryInput);
@@ -207,4 +216,3 @@ export const deleteMemberById = async (id: number): Promise<void> => {
     throw error;
   }
 };
-
