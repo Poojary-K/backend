@@ -8,7 +8,10 @@ import {
   findMemberById,
   listMembers,
   updateMemberAdminStatus,
+  updateMember,
+  deleteMember,
   type MemberRecord,
+  type UpdateMemberInput,
 } from '../repositories/memberRepository.js';
 
 export interface RegisterMemberInput {
@@ -149,5 +152,59 @@ export const upgradeToAdmin = async (input: UpgradeToAdminInput) => {
       isAdmin: updatedMember.is_admin,
     },
   };
+};
+
+/**
+ * Retrieves a member by ID.
+ */
+export const getMemberById = async (id: number): Promise<MemberRecord> => {
+  const member = await findMemberById(id);
+  if (!member) {
+    throw new HttpError('Member not found', 404);
+  }
+  return {
+    ...member,
+    password: '[REDACTED]',
+  };
+};
+
+/**
+ * Updates a member.
+ */
+export const updateMemberById = async (id: number, input: UpdateMemberInput): Promise<MemberRecord> => {
+  try {
+    // Map isAdmin (from API) to is_admin (for repository)
+    const repositoryInput = {
+      name: input.name,
+      email: input.email,
+      phone: input.phone,
+      is_admin: input.isAdmin,
+    };
+    
+    const updated = await updateMember(id, repositoryInput);
+    return {
+      ...updated,
+      password: '[REDACTED]',
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Member not found') {
+      throw new HttpError('Member not found', 404);
+    }
+    throw error;
+  }
+};
+
+/**
+ * Deletes a member by ID.
+ */
+export const deleteMemberById = async (id: number): Promise<void> => {
+  try {
+    await deleteMember(id);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Member not found') {
+      throw new HttpError('Member not found', 404);
+    }
+    throw error;
+  }
 };
 

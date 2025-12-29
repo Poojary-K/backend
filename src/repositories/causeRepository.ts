@@ -46,3 +46,79 @@ export const listCauses = async (): Promise<CauseRecord[]> => {
   return result.rows;
 };
 
+/**
+ * Retrieves a cause by ID.
+ */
+export const findCauseById = async (id: number): Promise<CauseRecord | null> => {
+  const text = `
+    SELECT causeid, title, description, amount, createdat
+    FROM causes
+    WHERE causeid = $1
+    LIMIT 1;
+  `;
+  const result = await query<CauseRecord>(text, [id]);
+  return result.rows[0] ?? null;
+};
+
+export interface UpdateCauseInput {
+  readonly title?: string | undefined;
+  readonly description?: string | undefined;
+  readonly amount?: number | undefined;
+}
+
+/**
+ * Updates a cause and returns the updated record.
+ */
+export const updateCause = async (id: number, input: UpdateCauseInput): Promise<CauseRecord> => {
+  const updates: string[] = [];
+  const values: unknown[] = [];
+  let paramIndex = 1;
+
+  if (input.title !== undefined) {
+    updates.push(`title = $${paramIndex++}`);
+    values.push(input.title);
+  }
+  if (input.description !== undefined) {
+    updates.push(`description = $${paramIndex++}`);
+    values.push(input.description);
+  }
+  if (input.amount !== undefined) {
+    updates.push(`amount = $${paramIndex++}`);
+    values.push(input.amount);
+  }
+
+  if (updates.length === 0) {
+    // No updates, just return the existing record
+    const existing = await findCauseById(id);
+    if (!existing) {
+      throw new Error('Cause not found');
+    }
+    return existing;
+  }
+
+  values.push(id);
+  const text = `
+    UPDATE causes
+    SET ${updates.join(', ')}
+    WHERE causeid = $${paramIndex}
+    RETURNING causeid, title, description, amount, createdat;
+  `;
+  const result = await query<CauseRecord>(text, values);
+  const row = result.rows[0];
+  if (!row) {
+    throw new Error('Cause not found');
+  }
+  return row;
+};
+
+/**
+ * Deletes a cause by ID.
+ */
+export const deleteCause = async (id: number): Promise<void> => {
+  const text = `DELETE FROM causes WHERE causeid = $1;`;
+  const result = await query(text, [id]);
+  if (result.rowCount === 0) {
+    throw new Error('Cause not found');
+  }
+};
+
