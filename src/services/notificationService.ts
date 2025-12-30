@@ -143,62 +143,39 @@ export const notifyContributionDeleted = async (contribution: ContributionRecord
   }
 };
 
-export const notifyCauseCreated = async (cause: CauseRecord): Promise<void> => {
+const notifyCauseToMembers = async (templateKey: string, cause: CauseRecord): Promise<void> => {
   try {
     const members = await listMembers();
     const images = await listCauseImages(cause.causeid);
     const imagesHtml = buildImagesHtml(images.map((image) => image.url));
-    for (const member of members) {
-      const email = normalizeEmail(member.email);
-      if (!email) {
-        continue;
-      }
-      await sendTemplatedEmail('cause.created', email, {
-        ...buildCauseData(cause, member),
-        imagesHtml,
-      });
+    const tasks = members
+      .map((member) => {
+        const email = normalizeEmail(member.email);
+        if (!email) {
+          return null;
+        }
+        return sendTemplatedEmail(templateKey, email, {
+          ...buildCauseData(cause, member),
+          imagesHtml,
+        });
+      })
+      .filter((task): task is Promise<void> => task !== null);
+
+    const results = await Promise.allSettled(tasks);
+    const failures = results.filter((result) => result.status === 'rejected');
+    if (failures.length > 0) {
+      console.error(`Failed to send ${failures.length} ${templateKey} emails.`);
     }
   } catch (error) {
-    console.error('Failed to send cause created emails.', error);
+    console.error(`Failed to send ${templateKey} emails.`, error);
   }
 };
 
-export const notifyCauseUpdated = async (cause: CauseRecord): Promise<void> => {
-  try {
-    const members = await listMembers();
-    const images = await listCauseImages(cause.causeid);
-    const imagesHtml = buildImagesHtml(images.map((image) => image.url));
-    for (const member of members) {
-      const email = normalizeEmail(member.email);
-      if (!email) {
-        continue;
-      }
-      await sendTemplatedEmail('cause.updated', email, {
-        ...buildCauseData(cause, member),
-        imagesHtml,
-      });
-    }
-  } catch (error) {
-    console.error('Failed to send cause updated emails.', error);
-  }
-};
+export const notifyCauseCreated = async (cause: CauseRecord): Promise<void> =>
+  notifyCauseToMembers('cause.created', cause);
 
-export const notifyCauseDeleted = async (cause: CauseRecord): Promise<void> => {
-  try {
-    const members = await listMembers();
-    const images = await listCauseImages(cause.causeid);
-    const imagesHtml = buildImagesHtml(images.map((image) => image.url));
-    for (const member of members) {
-      const email = normalizeEmail(member.email);
-      if (!email) {
-        continue;
-      }
-      await sendTemplatedEmail('cause.deleted', email, {
-        ...buildCauseData(cause, member),
-        imagesHtml,
-      });
-    }
-  } catch (error) {
-    console.error('Failed to send cause deleted emails.', error);
-  }
-};
+export const notifyCauseUpdated = async (cause: CauseRecord): Promise<void> =>
+  notifyCauseToMembers('cause.updated', cause);
+
+export const notifyCauseDeleted = async (cause: CauseRecord): Promise<void> =>
+  notifyCauseToMembers('cause.deleted', cause);
