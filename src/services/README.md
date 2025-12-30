@@ -8,7 +8,9 @@ Services contain the business logic layer of the application. They orchestrate o
 - `memberService.ts` - Member management business logic
 - `causeService.ts` - Cause management business logic
 - `contributionService.ts` - Contribution tracking business logic
+- `emailService.ts` - Email delivery helpers and template rendering
 - `fundService.ts` - Fund aggregation and summary business logic
+- `notificationService.ts` - Notification orchestration for contribution/cause events
 
 ## 🎯 Purpose
 

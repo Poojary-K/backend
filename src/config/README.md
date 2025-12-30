@@ -19,6 +19,10 @@ This directory contains all configuration-related code for the application, incl
 - `jwtSecret`: Secret key for JWT token signing
 - `jwtExpiresIn`: JWT token expiration time (default: "1h")
 - `bcryptSaltRounds`: Number of salt rounds for password hashing (default: 10)
+- `mailEnabled`: Enable outbound email notifications (default: true when mail credentials are set)
+- `mailFrom`: From address for notification emails
+- `mailUser`: SMTP auth user (defaults to `mailFrom` when unset)
+- `mailPass`: SMTP app password
 
 **Usage**:
 ```typescript
@@ -74,6 +78,10 @@ DATABASE_URL=postgres://user:password@localhost:5432/funds
 JWT_SECRET=your-secret-key-change-in-production
 JWT_EXPIRES_IN=1h
 BCRYPT_SALT_ROUNDS=10
+MAIL_FROM=your-email@gmail.com
+MAIL_USER=your-email@gmail.com
+MAIL_PASS=your-app-password
+MAIL_ENABLED=true
 ```
 
 ## ⚠️ Important Notes

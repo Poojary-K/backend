@@ -9,6 +9,11 @@ import {
   type UpdateContributionInput,
 } from '../repositories/contributionRepository.js';
 import { findMemberById } from '../repositories/memberRepository.js';
+import {
+  notifyContributionCreated,
+  notifyContributionDeleted,
+  notifyContributionUpdated,
+} from './notificationService.js';
 
 export interface ContributionInput {
   readonly memberId: number;
@@ -23,14 +28,16 @@ export const recordContribution = async (input: ContributionInput): Promise<Cont
   if (input.amount <= 0) {
     throw new HttpError('Contribution amount must be positive', 400);
   }
-  
+
   // Validate that member exists before creating contribution
   const member = await findMemberById(input.memberId);
   if (!member) {
     throw new HttpError(`Member with ID ${input.memberId} not found`, 404);
   }
-  
-  return createContribution(input);
+
+  const contribution = await createContribution(input);
+  void notifyContributionCreated(contribution, member);
+  return contribution;
 };
 
 /**
@@ -58,16 +65,18 @@ export const updateContributionById = async (id: number, input: UpdateContributi
   if (input.amount !== undefined && input.amount <= 0) {
     throw new HttpError('Contribution amount must be positive', 400);
   }
-  
+
   if (input.memberId !== undefined) {
     const member = await findMemberById(input.memberId);
     if (!member) {
       throw new HttpError(`Member with ID ${input.memberId} not found`, 404);
     }
   }
-  
+
   try {
-    return await updateContribution(id, input);
+    const updatedContribution = await updateContribution(id, input);
+    void notifyContributionUpdated(updatedContribution);
+    return updatedContribution;
   } catch (error) {
     if (error instanceof Error && error.message === 'Contribution not found') {
       throw new HttpError('Contribution not found', 404);
@@ -80,8 +89,14 @@ export const updateContributionById = async (id: number, input: UpdateContributi
  * Deletes a contribution by ID.
  */
 export const deleteContributionById = async (id: number): Promise<void> => {
+  const existing = await findContributionById(id);
+  if (!existing) {
+    throw new HttpError('Contribution not found', 404);
+  }
+
   try {
     await deleteContribution(id);
+    void notifyContributionDeleted(existing);
   } catch (error) {
     if (error instanceof Error && error.message === 'Contribution not found') {
       throw new HttpError('Contribution not found', 404);
@@ -100,5 +115,3 @@ export const canModifyContribution = async (contributionId: number, userId: numb
   }
   return isAdmin || contribution.memberid === userId;
 };
-
-
