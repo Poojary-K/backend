@@ -9,6 +9,7 @@ import {
   type UpdateCauseInput,
 } from '../repositories/causeRepository.js';
 import { notifyCauseCreated, notifyCauseDeleted, notifyCauseUpdated } from './notificationService.js';
+import { cleanupCauseImages, listCauseImagesById } from './causeImageService.js';
 
 export interface CauseInput {
   readonly title: string;
@@ -19,12 +20,14 @@ export interface CauseInput {
 /**
  * Validates and creates a new fundraising cause.
  */
-export const registerCause = async (input: CauseInput): Promise<CauseRecord> => {
+export const registerCause = async (input: CauseInput, options?: { notify?: boolean }): Promise<CauseRecord> => {
   if (input.amount !== undefined && input.amount < 0) {
     throw new HttpError('Amount cannot be negative', 400);
   }
   const cause = await createCause(input);
-  void notifyCauseCreated(cause);
+  if (options?.notify !== false) {
+    void notifyCauseCreated(cause);
+  }
   return cause;
 };
 
@@ -75,8 +78,10 @@ export const deleteCauseById = async (id: number): Promise<void> => {
   }
 
   try {
+    const images = await listCauseImagesById(id);
     await deleteCause(id);
     void notifyCauseDeleted(existing);
+    void cleanupCauseImages(images);
   } catch (error) {
     if (error instanceof Error && error.message === 'Cause not found') {
       throw new HttpError('Cause not found', 404);

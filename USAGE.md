@@ -13,6 +13,7 @@ This guide explains how to use all API endpoints using Postman or any HTTP clien
   - [Cause Endpoints](#cause-endpoints)
   - [Contribution Endpoints](#contribution-endpoints)
   - [Fund Endpoints](#fund-endpoints)
+- [Image Upload Endpoints](#image-upload-endpoints)
 - [Error Responses](#error-responses)
 - [Postman Collection Setup](#postman-collection-setup)
 
@@ -378,6 +379,40 @@ Content-Type: application/json
 
 ---
 
+#### 4a. Create a Cause with Images (Single Request)
+
+**Endpoint:** `POST /api/causes/with-images`
+
+**Authentication:** Required (Bearer Token)
+
+**Request Headers:**
+```
+Authorization: Bearer <your-jwt-token>
+Content-Type: multipart/form-data
+```
+
+**Form Fields:**
+- `title` (required): String
+- `description` (optional): String
+- `amount` (optional): Number
+- `images` (optional): One or more image files
+
+**Success Response (201 Created):**
+```json
+{
+  "success": true,
+  "data": {
+    "causeid": 1,
+    "title": "Help Build a School",
+    "description": "We need funds to build a new school in rural area",
+    "amount": "50000.00",
+    "createdat": "2024-01-20T10:30:00.000Z"
+  }
+}
+```
+
+---
+
 #### 5. List All Causes
 
 **Endpoint:** `GET /api/causes`
@@ -477,6 +512,40 @@ Content-Type: application/json
 
 ---
 
+#### 6a. Create a Contribution with Images (Single Request)
+
+**Endpoint:** `POST /api/contributions/with-images`
+
+**Authentication:** Required (Bearer Token)
+
+**Request Headers:**
+```
+Authorization: Bearer <your-jwt-token>
+Content-Type: multipart/form-data
+```
+
+**Form Fields:**
+- `memberId` (required): Integer
+- `amount` (required): Number
+- `contributedDate` (required): Date string (YYYY-MM-DD)
+- `images` (optional): One or more image files
+
+**Success Response (201 Created):**
+```json
+{
+  "success": true,
+  "data": {
+    "contributionid": 1,
+    "memberid": 1,
+    "amount": "1000.00",
+    "contributeddate": "2024-01-20",
+    "createdat": "2024-01-20T15:45:00.000Z"
+  }
+}
+```
+
+---
+
 #### 7. List All Contributions
 
 **Endpoint:** `GET /api/contributions`
@@ -546,6 +615,28 @@ Content-Type: application/json
 - `totalcontributions`: Sum of all contributions made
 - `totaldonations`: Sum of all cause amounts (target donations)
 - `availablefunds`: Total contributions minus total donations (can be negative)
+
+---
+
+## Image Upload Endpoints
+
+### Contribution Images
+
+- **List images:** `GET /api/contributions/:id/images`
+- **Upload images:** `POST /api/contributions/:id/images` (multipart form-data, field name `images`)
+- **Replace image:** `PUT /api/contributions/:id/images/:imageId` (multipart form-data, field name `image`)
+- **Delete image:** `DELETE /api/contributions/:id/images/:imageId`
+
+All contribution image endpoints require authentication. Upload/replace/delete require the contributor or an admin.
+
+### Cause Images
+
+- **List images:** `GET /api/causes/:id/images`
+- **Upload images:** `POST /api/causes/:id/images` (multipart form-data, field name `images`)
+- **Replace image:** `PUT /api/causes/:id/images/:imageId` (multipart form-data, field name `image`)
+- **Delete image:** `DELETE /api/causes/:id/images/:imageId`
+
+List is public. Upload/replace/delete require admin privileges.
 
 ---
 
@@ -781,5 +872,3 @@ Authorization: Bearer {{token}}
 ---
 
 Happy Testing! 🚀
-
-

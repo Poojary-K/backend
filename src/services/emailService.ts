@@ -88,7 +88,13 @@ const escapeHtml = (value: string): string =>
     .replace(/'/g, '&#39;');
 
 const renderTemplate = (template: string, data: Record<string, string>): string =>
-  template.replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (_match, key: string) => escapeHtml(data[key] ?? ''));
+  template.replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (_match, key: string) => {
+    const value = data[key] ?? '';
+    if (key.endsWith('Html')) {
+      return value;
+    }
+    return escapeHtml(value);
+  });
 
 const applyLayout = (layout: string, content: string): string =>
   layout.replace(/{{\s*content\s*}}/g, () => content);

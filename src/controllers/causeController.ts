@@ -1,7 +1,9 @@
 import type { Request, Response, NextFunction } from 'express';
 import { getCauses, registerCause, getCauseById, updateCauseById, deleteCauseById } from '../services/causeService.js';
+import { addCauseImages } from '../services/causeImageService.js';
+import { notifyCauseCreated } from '../services/notificationService.js';
 import type { z } from 'zod';
-import type { causeSchema } from '../schemas/causeSchemas.js';
+import { causeSchema } from '../schemas/causeSchemas.js';
 
 /**
  * Creates a fundraising cause.
@@ -11,6 +13,36 @@ export const createCauseHandler = async (req: Request, res: Response, next: Next
   try {
     const payload = req.body as z.infer<typeof causeSchema>;
     const cause = await registerCause(payload);
+    res.status(201).json({ success: true, data: cause });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Creates a cause with optional images in a single request (multipart/form-data).
+ */
+export const createCauseWithImagesHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const payload = {
+      title: req.body.title,
+      description: req.body.description,
+      amount: req.body.amount !== undefined && req.body.amount !== '' ? Number.parseFloat(req.body.amount) : undefined,
+    } as z.infer<typeof causeSchema>;
+
+    const parsed = causeSchema.safeParse(payload);
+    if (!parsed.success) {
+      next(parsed.error);
+      return;
+    }
+
+    const cause = await registerCause(parsed.data, { notify: false });
+    const files = req.files as Express.Multer.File[] | undefined;
+    if (files && files.length > 0) {
+      await addCauseImages(cause.causeid, files, { notify: false });
+    }
+
+    void notifyCauseCreated(cause);
     res.status(201).json({ success: true, data: cause });
   } catch (error) {
     next(error);
@@ -95,5 +127,4 @@ export const deleteCauseHandler = async (req: Request, res: Response, next: Next
     next(error);
   }
 };
-
 

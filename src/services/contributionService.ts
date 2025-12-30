@@ -14,6 +14,7 @@ import {
   notifyContributionDeleted,
   notifyContributionUpdated,
 } from './notificationService.js';
+import { cleanupContributionImages, listContributionImagesById } from './contributionImageService.js';
 
 export interface ContributionInput {
   readonly memberId: number;
@@ -24,7 +25,10 @@ export interface ContributionInput {
 /**
  * Validates and records a contribution for a member.
  */
-export const recordContribution = async (input: ContributionInput): Promise<ContributionRecord> => {
+export const recordContribution = async (
+  input: ContributionInput,
+  options?: { notify?: boolean },
+): Promise<ContributionRecord> => {
   if (input.amount <= 0) {
     throw new HttpError('Contribution amount must be positive', 400);
   }
@@ -36,7 +40,9 @@ export const recordContribution = async (input: ContributionInput): Promise<Cont
   }
 
   const contribution = await createContribution(input);
-  void notifyContributionCreated(contribution, member);
+  if (options?.notify !== false) {
+    void notifyContributionCreated(contribution, member);
+  }
   return contribution;
 };
 
@@ -95,8 +101,10 @@ export const deleteContributionById = async (id: number): Promise<void> => {
   }
 
   try {
+    const images = await listContributionImagesById(id);
     await deleteContribution(id);
     void notifyContributionDeleted(existing);
+    void cleanupContributionImages(images);
   } catch (error) {
     if (error instanceof Error && error.message === 'Contribution not found') {
       throw new HttpError('Contribution not found', 404);

@@ -7,9 +7,11 @@ import {
   deleteContributionById,
   canModifyContribution,
 } from '../services/contributionService.js';
+import { addContributionImages } from '../services/contributionImageService.js';
+import { notifyContributionCreated } from '../services/notificationService.js';
 import { HttpError } from '../middlewares/errorHandler.js';
 import type { z } from 'zod';
-import type { contributionSchema } from '../schemas/contributionSchemas.js';
+import { contributionSchema } from '../schemas/contributionSchemas.js';
 
 /**
  * Handles the creation of contributions.
@@ -19,6 +21,40 @@ export const createContributionHandler = async (req: Request, res: Response, nex
   try {
     const payload = req.body as z.infer<typeof contributionSchema>;
     const contribution = await recordContribution(payload);
+    res.status(201).json({ success: true, data: contribution });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Creates a contribution with optional images in a single request (multipart/form-data).
+ */
+export const createContributionWithImagesHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const payload = {
+      memberId: Number.parseInt(req.body.memberId, 10),
+      amount: Number.parseFloat(req.body.amount),
+      contributedDate: req.body.contributedDate,
+    } as z.infer<typeof contributionSchema>;
+
+    const parsed = contributionSchema.safeParse(payload);
+    if (!parsed.success) {
+      next(parsed.error);
+      return;
+    }
+
+    const contribution = await recordContribution(parsed.data, { notify: false });
+    const files = req.files as Express.Multer.File[] | undefined;
+    if (files && files.length > 0) {
+      await addContributionImages(contribution.contributionid, files, { notify: false });
+    }
+
+    void notifyContributionCreated(contribution);
     res.status(201).json({ success: true, data: contribution });
   } catch (error) {
     next(error);
@@ -129,4 +165,3 @@ export const deleteContributionHandler = async (req: Request, res: Response, nex
     next(error);
   }
 };
-

@@ -11,6 +11,9 @@ Services contain the business logic layer of the application. They orchestrate o
 - `emailService.ts` - Email delivery helpers and template rendering
 - `fundService.ts` - Fund aggregation and summary business logic
 - `notificationService.ts` - Notification orchestration for contribution/cause events
+- `driveService.ts` - Google Drive upload/delete helpers
+- `contributionImageService.ts` - Contribution image CRUD and Drive cleanup
+- `causeImageService.ts` - Cause image CRUD and Drive cleanup
 
 ## 🎯 Purpose
 

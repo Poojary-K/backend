@@ -23,6 +23,15 @@ This directory contains all configuration-related code for the application, incl
 - `mailFrom`: From address for notification emails
 - `mailUser`: SMTP auth user (defaults to `mailFrom` when unset)
 - `mailPass`: SMTP app password
+- `gdriveOauthClientId`: OAuth client ID (use this instead of service account)
+- `gdriveOauthClientSecret`: OAuth client secret
+- `gdriveOauthRedirectUri`: OAuth redirect URI (used when generating refresh token)
+- `gdriveOauthRefreshToken`: OAuth refresh token
+- `gdriveParentFolderId`: Optional parent folder ID for image folders
+- `gdriveContributionFolderId`: Pre-created folder ID for contribution images (optional)
+- `gdriveCauseFolderId`: Pre-created folder ID for cause images (optional)
+- `gdriveMaxFileSizeMb`: Max upload size per image in MB (default: 10)
+- `gdriveMaxFiles`: Max images per upload request (default: 10)
 
 **Usage**:
 ```typescript
@@ -82,6 +91,15 @@ MAIL_FROM=your-email@gmail.com
 MAIL_USER=your-email@gmail.com
 MAIL_PASS=your-app-password
 MAIL_ENABLED=true
+GDRIVE_OAUTH_CLIENT_ID=
+GDRIVE_OAUTH_CLIENT_SECRET=
+GDRIVE_OAUTH_REDIRECT_URI=
+GDRIVE_OAUTH_REFRESH_TOKEN=
+GDRIVE_PARENT_FOLDER_ID=
+GDRIVE_CONTRIB_FOLDER_ID=
+GDRIVE_CAUSE_FOLDER_ID=
+GDRIVE_MAX_FILE_SIZE_MB=10
+GDRIVE_MAX_FILES=10
 ```
 
 ## ⚠️ Important Notes
@@ -98,8 +116,6 @@ For tests, you may need to:
 - Use a separate test database
 - Call `closePool()` after tests to clean up connections
 - Mock the database functions if needed
-
-
 
 
 

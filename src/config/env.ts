@@ -16,6 +16,15 @@ export interface AppConfig {
   readonly mailFrom: string;
   readonly mailUser: string;
   readonly mailPass: string;
+  readonly gdriveParentFolderId: string;
+  readonly gdriveContributionFolderId: string;
+  readonly gdriveCauseFolderId: string;
+  readonly gdriveMaxFileSizeMb: number;
+  readonly gdriveMaxFiles: number;
+  readonly gdriveOauthClientId: string;
+  readonly gdriveOauthClientSecret: string;
+  readonly gdriveOauthRedirectUri: string;
+  readonly gdriveOauthRefreshToken: string;
 }
 
 const parseNumber = (value: string | undefined, fallback: number): number => {
@@ -45,10 +54,18 @@ const config: AppConfig = {
   mailFrom: process.env.MAIL_FROM ?? '',
   mailUser: process.env.MAIL_USER ?? process.env.MAIL_FROM ?? '',
   mailPass: process.env.MAIL_PASS ?? '',
+  gdriveParentFolderId: process.env.GDRIVE_PARENT_FOLDER_ID ?? '',
+  gdriveContributionFolderId: process.env.GDRIVE_CONTRIB_FOLDER_ID ?? '',
+  gdriveCauseFolderId: process.env.GDRIVE_CAUSE_FOLDER_ID ?? '',
+  gdriveMaxFileSizeMb: parseNumber(process.env.GDRIVE_MAX_FILE_SIZE_MB, 10),
+  gdriveMaxFiles: parseNumber(process.env.GDRIVE_MAX_FILES, 10),
+  gdriveOauthClientId: process.env.GDRIVE_OAUTH_CLIENT_ID ?? '',
+  gdriveOauthClientSecret: process.env.GDRIVE_OAUTH_CLIENT_SECRET ?? '',
+  gdriveOauthRedirectUri: process.env.GDRIVE_OAUTH_REDIRECT_URI ?? '',
+  gdriveOauthRefreshToken: process.env.GDRIVE_OAUTH_REFRESH_TOKEN ?? '',
 };
 
 /**
  * Returns the immutable application configuration for the current runtime.
  */
 export const getConfig = (): AppConfig => config;
-

@@ -9,6 +9,7 @@ TypeScript/Express API for managing members, causes, contributions, and fund sta
 - Cause and contribution tracking
 - Fund status summary
 - Email notifications for contribution and cause create/update/delete events
+- Google Drive image storage for contribution/cause attachments (public links)
 - Zod validation and centralized error handling
 - Database migrations via `node-pg-migrate`
 
@@ -67,6 +68,15 @@ Notifications are sent on create/update/delete for contributions (to the member)
 - Config: `MAIL_FROM`, `MAIL_USER`, `MAIL_PASS`, `MAIL_ENABLED`
 
 If Gmail is used, an app password is required.
+
+## Image Uploads (Google Drive)
+
+Contribution/cause images are uploaded to Google Drive and stored as public links in the database.
+
+Required env variables:
+- OAuth credentials (`GDRIVE_OAUTH_CLIENT_ID`, `GDRIVE_OAUTH_CLIENT_SECRET`, `GDRIVE_OAUTH_REFRESH_TOKEN`)
+- Optional folder IDs: `GDRIVE_CONTRIB_FOLDER_ID`, `GDRIVE_CAUSE_FOLDER_ID`
+- Limits: `GDRIVE_MAX_FILE_SIZE_MB`, `GDRIVE_MAX_FILES`
 
 ## API Usage
 

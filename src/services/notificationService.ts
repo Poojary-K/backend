@@ -1,5 +1,7 @@
 import type { CauseRecord } from '../repositories/causeRepository.js';
 import type { ContributionRecord } from '../repositories/contributionRepository.js';
+import { listCauseImages } from '../repositories/causeImageRepository.js';
+import { listContributionImages } from '../repositories/contributionImageRepository.js';
 import { findMemberById, listMembers, type MemberRecord } from '../repositories/memberRepository.js';
 import { sendTemplatedEmail } from './emailService.js';
 
@@ -14,6 +16,40 @@ const formatDate = (value: Date | string | null | undefined): string => {
 const normalizeEmail = (value: string | null): string | null => {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+};
+
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const buildImagesHtml = (urls: string[]): string => {
+  if (urls.length === 0) {
+    return '';
+  }
+
+  const items = urls
+    .map((url) => {
+      const safeUrl = escapeHtml(url);
+      return [
+        "<div style='margin:0 0 8px 0;'>",
+        "<img src='",
+        safeUrl,
+        "' alt='Image' style='display:block;width:100%;max-width:480px;height:auto;border-radius:8px;border:1px solid #eee;' />",
+        '</div>',
+      ].join('');
+    })
+    .join('');
+
+  return [
+    "<div style='margin:12px 0 0 0;'>",
+    "<div style='font-size:12px;color:#777;margin-bottom:6px;'>Proof of Payment</div>",
+    items,
+    '</div>',
+  ].join('');
 };
 
 const buildContributionData = (contribution: ContributionRecord, member: MemberRecord): Record<string, string> => ({
@@ -52,7 +88,12 @@ export const notifyContributionCreated = async (
       return;
     }
 
-    await sendTemplatedEmail('contribution.created', email, buildContributionData(contribution, resolvedMember));
+    const images = await listContributionImages(contribution.contributionid);
+    const imagesHtml = buildImagesHtml(images.map((image) => image.url));
+    await sendTemplatedEmail('contribution.created', email, {
+      ...buildContributionData(contribution, resolvedMember),
+      imagesHtml,
+    });
   } catch (error) {
     console.error('Failed to send contribution created email.', error);
   }
@@ -69,7 +110,12 @@ export const notifyContributionUpdated = async (contribution: ContributionRecord
       return;
     }
 
-    await sendTemplatedEmail('contribution.updated', email, buildContributionData(contribution, resolvedMember));
+    const images = await listContributionImages(contribution.contributionid);
+    const imagesHtml = buildImagesHtml(images.map((image) => image.url));
+    await sendTemplatedEmail('contribution.updated', email, {
+      ...buildContributionData(contribution, resolvedMember),
+      imagesHtml,
+    });
   } catch (error) {
     console.error('Failed to send contribution updated email.', error);
   }
@@ -86,7 +132,12 @@ export const notifyContributionDeleted = async (contribution: ContributionRecord
       return;
     }
 
-    await sendTemplatedEmail('contribution.deleted', email, buildContributionData(contribution, resolvedMember));
+    const images = await listContributionImages(contribution.contributionid);
+    const imagesHtml = buildImagesHtml(images.map((image) => image.url));
+    await sendTemplatedEmail('contribution.deleted', email, {
+      ...buildContributionData(contribution, resolvedMember),
+      imagesHtml,
+    });
   } catch (error) {
     console.error('Failed to send contribution deleted email.', error);
   }
@@ -95,12 +146,17 @@ export const notifyContributionDeleted = async (contribution: ContributionRecord
 export const notifyCauseCreated = async (cause: CauseRecord): Promise<void> => {
   try {
     const members = await listMembers();
+    const images = await listCauseImages(cause.causeid);
+    const imagesHtml = buildImagesHtml(images.map((image) => image.url));
     for (const member of members) {
       const email = normalizeEmail(member.email);
       if (!email) {
         continue;
       }
-      await sendTemplatedEmail('cause.created', email, buildCauseData(cause, member));
+      await sendTemplatedEmail('cause.created', email, {
+        ...buildCauseData(cause, member),
+        imagesHtml,
+      });
     }
   } catch (error) {
     console.error('Failed to send cause created emails.', error);
@@ -110,12 +166,17 @@ export const notifyCauseCreated = async (cause: CauseRecord): Promise<void> => {
 export const notifyCauseUpdated = async (cause: CauseRecord): Promise<void> => {
   try {
     const members = await listMembers();
+    const images = await listCauseImages(cause.causeid);
+    const imagesHtml = buildImagesHtml(images.map((image) => image.url));
     for (const member of members) {
       const email = normalizeEmail(member.email);
       if (!email) {
         continue;
       }
-      await sendTemplatedEmail('cause.updated', email, buildCauseData(cause, member));
+      await sendTemplatedEmail('cause.updated', email, {
+        ...buildCauseData(cause, member),
+        imagesHtml,
+      });
     }
   } catch (error) {
     console.error('Failed to send cause updated emails.', error);
@@ -125,12 +186,17 @@ export const notifyCauseUpdated = async (cause: CauseRecord): Promise<void> => {
 export const notifyCauseDeleted = async (cause: CauseRecord): Promise<void> => {
   try {
     const members = await listMembers();
+    const images = await listCauseImages(cause.causeid);
+    const imagesHtml = buildImagesHtml(images.map((image) => image.url));
     for (const member of members) {
       const email = normalizeEmail(member.email);
       if (!email) {
         continue;
       }
-      await sendTemplatedEmail('cause.deleted', email, buildCauseData(cause, member));
+      await sendTemplatedEmail('cause.deleted', email, {
+        ...buildCauseData(cause, member),
+        imagesHtml,
+      });
     }
   } catch (error) {
     console.error('Failed to send cause deleted emails.', error);
