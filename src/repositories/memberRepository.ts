@@ -9,6 +9,11 @@ export interface MemberRecord {
   readonly password: string;
   readonly joinedon: Date;
   readonly is_admin: boolean;
+  readonly email_verified: boolean;
+  readonly email_verified_at: Date | null;
+  readonly email_verification_token_hash: string | null;
+  readonly email_verification_expires_at: Date | null;
+  readonly email_verification_sent_at: Date | null;
 }
 
 export interface CreateMemberInput {
@@ -26,7 +31,9 @@ export const createMember = async (input: CreateMemberInput): Promise<MemberReco
   const text = `
     INSERT INTO members (name, email, phone, password, is_admin)
     VALUES ($1, $2, $3, $4, $5)
-    RETURNING memberid, name, email, phone, password, joinedon, is_admin;
+    RETURNING memberid, name, email, phone, password, joinedon, is_admin,
+      email_verified, email_verified_at, email_verification_token_hash,
+      email_verification_expires_at, email_verification_sent_at;
   `;
   const values = [input.name, input.email ?? null, input.phone ?? null, input.password, input.is_admin ?? false];
   const result = await query<MemberRecord>(text, values);
@@ -41,7 +48,14 @@ export const createMember = async (input: CreateMemberInput): Promise<MemberReco
  * Retrieves a member by unique email address.
  */
 export const findMemberByEmail = async (email: string): Promise<MemberRecord | null> => {
-  const text = `SELECT memberid, name, email, phone, password, joinedon, is_admin FROM members WHERE email = $1 LIMIT 1;`;
+  const text = `
+    SELECT memberid, name, email, phone, password, joinedon, is_admin,
+      email_verified, email_verified_at, email_verification_token_hash,
+      email_verification_expires_at, email_verification_sent_at
+    FROM members
+    WHERE email = $1
+    LIMIT 1;
+  `;
   const result = await query<MemberRecord>(text, [email]);
   return result.rows.at(0) ?? null;
 };
@@ -50,7 +64,14 @@ export const findMemberByEmail = async (email: string): Promise<MemberRecord | n
  * Retrieves a member by ID.
  */
 export const findMemberById = async (id: number): Promise<MemberRecord | null> => {
-  const text = `SELECT memberid, name, email, phone, password, joinedon, is_admin FROM members WHERE memberid = $1 LIMIT 1;`;
+  const text = `
+    SELECT memberid, name, email, phone, password, joinedon, is_admin,
+      email_verified, email_verified_at, email_verification_token_hash,
+      email_verification_expires_at, email_verification_sent_at
+    FROM members
+    WHERE memberid = $1
+    LIMIT 1;
+  `;
   const result = await query<MemberRecord>(text, [id]);
   return result.rows.at(0) ?? null;
 };
@@ -59,7 +80,13 @@ export const findMemberById = async (id: number): Promise<MemberRecord | null> =
  * Fetches all members ordered by join date.
  */
 export const listMembers = async (): Promise<MemberRecord[]> => {
-  const text = `SELECT memberid, name, email, phone, password, joinedon, is_admin FROM members ORDER BY joinedon DESC;`;
+  const text = `
+    SELECT memberid, name, email, phone, password, joinedon, is_admin,
+      email_verified, email_verified_at, email_verification_token_hash,
+      email_verification_expires_at, email_verification_sent_at
+    FROM members
+    ORDER BY joinedon DESC;
+  `;
   const result: QueryResult<MemberRecord> = await query<MemberRecord>(text);
   return result.rows;
 };
@@ -72,7 +99,9 @@ export const updateMemberAdminStatus = async (id: number, isAdmin: boolean): Pro
     UPDATE members
     SET is_admin = $1
     WHERE memberid = $2
-    RETURNING memberid, name, email, phone, password, joinedon, is_admin;
+    RETURNING memberid, name, email, phone, password, joinedon, is_admin,
+      email_verified, email_verified_at, email_verification_token_hash,
+      email_verification_expires_at, email_verification_sent_at;
   `;
   const result = await query<MemberRecord>(text, [isAdmin, id]);
   const row = result.rows[0];
@@ -128,7 +157,9 @@ export const updateMember = async (id: number, input: UpdateMemberInput): Promis
     UPDATE members
     SET ${updates.join(', ')}
     WHERE memberid = $${paramIndex}
-    RETURNING memberid, name, email, phone, password, joinedon, is_admin;
+    RETURNING memberid, name, email, phone, password, joinedon, is_admin,
+      email_verified, email_verified_at, email_verification_token_hash,
+      email_verification_expires_at, email_verification_sent_at;
   `;
   const result = await query<MemberRecord>(text, values);
   const row = result.rows[0];
@@ -149,3 +180,71 @@ export const deleteMember = async (id: number): Promise<void> => {
   }
 };
 
+/**
+ * Finds a member by email verification token hash.
+ */
+export const findMemberByVerificationTokenHash = async (tokenHash: string): Promise<MemberRecord | null> => {
+  const text = `
+    SELECT memberid, name, email, phone, password, joinedon, is_admin,
+      email_verified, email_verified_at, email_verification_token_hash,
+      email_verification_expires_at, email_verification_sent_at
+    FROM members
+    WHERE email_verification_token_hash = $1
+    LIMIT 1;
+  `;
+  const result = await query<MemberRecord>(text, [tokenHash]);
+  return result.rows.at(0) ?? null;
+};
+
+/**
+ * Stores a new email verification token for a member.
+ */
+export const setEmailVerificationToken = async (
+  memberId: number,
+  tokenHash: string,
+  expiresAt: Date,
+  sentAt: Date,
+): Promise<MemberRecord> => {
+  const text = `
+    UPDATE members
+    SET email_verification_token_hash = $1,
+        email_verification_expires_at = $2,
+        email_verification_sent_at = $3,
+        email_verified = FALSE,
+        email_verified_at = NULL
+    WHERE memberid = $4
+    RETURNING memberid, name, email, phone, password, joinedon, is_admin,
+      email_verified, email_verified_at, email_verification_token_hash,
+      email_verification_expires_at, email_verification_sent_at;
+  `;
+  const result = await query<MemberRecord>(text, [tokenHash, expiresAt, sentAt, memberId]);
+  const row = result.rows[0];
+  if (!row) {
+    throw new Error('Failed to update member verification token');
+  }
+  return row;
+};
+
+/**
+ * Marks a member's email as verified and clears verification fields.
+ */
+export const markEmailVerified = async (memberId: number): Promise<MemberRecord> => {
+  const text = `
+    UPDATE members
+    SET email_verified = TRUE,
+        email_verified_at = NOW(),
+        email_verification_token_hash = NULL,
+        email_verification_expires_at = NULL,
+        email_verification_sent_at = NULL
+    WHERE memberid = $1
+    RETURNING memberid, name, email, phone, password, joinedon, is_admin,
+      email_verified, email_verified_at, email_verification_token_hash,
+      email_verification_expires_at, email_verification_sent_at;
+  `;
+  const result = await query<MemberRecord>(text, [memberId]);
+  const row = result.rows[0];
+  if (!row) {
+    throw new Error('Failed to mark email verified');
+  }
+  return row;
+};

@@ -1,4 +1,10 @@
 {
+  "auth": {
+    "verify": {
+      "subject": "Verify your email address",
+      "content": "<p style='margin:0 0 10px 0; font-size:14px; color:#444;'>Hi {{memberName}},</p><p style='margin:0 0 14px 0; font-size:14px; color:#444;'>Please verify your email address. This link expires in {{expiresInSeconds}} seconds.</p><p style='margin:0 0 16px 0;'><a href='{{verificationUrl}}' style='display:inline-block;padding:10px 16px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;'>Verify email</a></p><p style='margin:0;font-size:12px;color:#777;'>If you did not create an account, you can ignore this email.</p>"
+    }
+  },
   "contribution": {
     "created": {
       "subject": "Contribution received (ID {{contributionId}})",

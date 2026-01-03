@@ -9,6 +9,9 @@ interface EmailTemplate {
 }
 
 interface EmailTemplates {
+  readonly auth: {
+    readonly verify: EmailTemplate;
+  };
   readonly contribution: {
     readonly created: EmailTemplate;
     readonly updated: EmailTemplate;
@@ -22,6 +25,7 @@ interface EmailTemplates {
 }
 
 export type EmailTemplateKey =
+  | 'auth.verify'
   | 'contribution.created'
   | 'contribution.updated'
   | 'contribution.deleted'
@@ -116,10 +120,19 @@ const getTransporter = (): Transporter => {
   return transporterCache;
 };
 
+type EmailTemplateGroup = 'auth' | 'contribution' | 'cause';
+type EmailTemplateAction = 'verify' | 'created' | 'updated' | 'deleted';
+
 const getTemplate = async (key: EmailTemplateKey): Promise<EmailTemplate> => {
   const templates = await loadTemplates();
-  const [group, action] = key.split('.') as ['contribution' | 'cause', 'created' | 'updated' | 'deleted'];
-  return templates[group][action];
+  const [group, action] = key.split('.') as [EmailTemplateGroup, EmailTemplateAction];
+  if (group === 'auth') {
+    if (action !== 'verify') {
+      throw new Error(`Unknown auth email template action: ${action}`);
+    }
+    return templates.auth.verify;
+  }
+  return templates[group][action as 'created' | 'updated' | 'deleted'];
 };
 
 const normalizeRecipients = (recipients: string | string[]): string[] => {

@@ -20,8 +20,11 @@ export const validateRequest = (schema: ZodType<unknown>, location: RequestLocat
       return;
     }
     // Normalise the request property with the parsed value to ensure correct types downstream.
-    req[location] = result.data;
+    if (location === 'body') {
+      req.body = result.data;
+    } else if (target && typeof target === 'object' && result.data && typeof result.data === 'object') {
+      Object.assign(target as Record<string, unknown>, result.data);
+    }
     next();
   };
 };
-

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { HttpError } from '../middlewares/errorHandler.js';
 import { hashPassword, verifyPassword } from '../utils/password.js';
 import { signToken } from '../utils/jwt.js';
@@ -6,13 +7,60 @@ import {
   createMember,
   findMemberByEmail,
   findMemberById,
+  findMemberByVerificationTokenHash,
   listMembers,
+  markEmailVerified,
+  setEmailVerificationToken,
   updateMemberAdminStatus,
   updateMember,
   deleteMember,
   type MemberRecord,
   type UpdateMemberInput as UpdateMemberRepositoryInput,
 } from '../repositories/memberRepository.js';
+import { sendTemplatedEmail } from './emailService.js';
+
+const EMAIL_VERIFICATION_TTL_SECONDS = 90;
+const EMAIL_VERIFICATION_TTL_MS = EMAIL_VERIFICATION_TTL_SECONDS * 1000;
+
+const hashToken = (token: string): string => crypto.createHash('sha256').update(token).digest('hex');
+
+const buildVerificationToken = (): { token: string; tokenHash: string; expiresAt: Date } => {
+  const token = crypto.randomBytes(32).toString('hex');
+  const tokenHash = hashToken(token);
+  const expiresAt = new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS);
+  return { token, tokenHash, expiresAt };
+};
+
+const buildVerificationUrl = (token: string): string => {
+  const { appBaseUrl } = getConfig();
+  const url = new URL('/api/auth/verify-email', appBaseUrl);
+  url.searchParams.set('token', token);
+  return url.toString();
+};
+
+const sendVerificationEmail = async (member: MemberRecord, token: string): Promise<void> => {
+  if (!member.email) {
+    return;
+  }
+  const verificationUrl = buildVerificationUrl(token);
+  try {
+    await sendTemplatedEmail('auth.verify', member.email, {
+      memberName: member.name,
+      verificationUrl,
+      expiresInSeconds: String(EMAIL_VERIFICATION_TTL_SECONDS),
+    });
+  } catch (error) {
+    console.error('Failed to send verification email.', error);
+  }
+};
+
+const sanitizeMember = (member: MemberRecord): MemberRecord => ({
+  ...member,
+  password: '[REDACTED]',
+  email_verification_token_hash: null,
+  email_verification_expires_at: null,
+  email_verification_sent_at: null,
+});
 
 export interface RegisterMemberInput {
   readonly name: string;
@@ -43,6 +91,22 @@ export const registerMember = async (input: RegisterMemberInput) => {
   if (input.email) {
     const existing = await findMemberByEmail(input.email);
     if (existing) {
+      if (!existing.email_verified) {
+        const { token, tokenHash, expiresAt } = buildVerificationToken();
+        const sentAt = new Date();
+        await setEmailVerificationToken(existing.memberid, tokenHash, expiresAt, sentAt);
+        await sendVerificationEmail(existing, token);
+        return {
+          memberId: existing.memberid,
+          name: existing.name,
+          email: existing.email,
+          phone: existing.phone,
+          joinedOn: existing.joinedon,
+          isAdmin: existing.is_admin,
+          verificationRequired: true,
+          verificationExpiresInSeconds: EMAIL_VERIFICATION_TTL_SECONDS,
+        };
+      }
       throw new HttpError('Email already registered', 409);
     }
   }
@@ -59,6 +123,24 @@ export const registerMember = async (input: RegisterMemberInput) => {
     password: hashedPassword,
     is_admin: isAdmin,
   });
+
+  if (storedMember.email) {
+    const { token, tokenHash, expiresAt } = buildVerificationToken();
+    const sentAt = new Date();
+    await setEmailVerificationToken(storedMember.memberid, tokenHash, expiresAt, sentAt);
+    await sendVerificationEmail(storedMember, token);
+    return {
+      memberId: storedMember.memberid,
+      name: storedMember.name,
+      email: storedMember.email,
+      phone: storedMember.phone,
+      joinedOn: storedMember.joinedon,
+      isAdmin: storedMember.is_admin,
+      verificationRequired: true,
+      verificationExpiresInSeconds: EMAIL_VERIFICATION_TTL_SECONDS,
+    };
+  }
+
   const token = signToken({
     memberId: storedMember.memberid,
     email: storedMember.email ?? '',
@@ -82,6 +164,9 @@ export const authenticateMember = async (input: LoginInput) => {
   const member = await findMemberByEmail(input.email);
   if (!member) {
     throw new HttpError('Invalid credentials', 401);
+  }
+  if (!member.email_verified) {
+    throw new HttpError('Email not verified', 403, { code: 'EMAIL_NOT_VERIFIED' });
   }
   const passwordMatches = await verifyPassword(input.password, member.password);
   if (!passwordMatches) {
@@ -110,10 +195,7 @@ export const authenticateMember = async (input: LoginInput) => {
  */
 export const getMembers = async () => {
   const members = await listMembers();
-  return members.map<MemberRecord>((member) => ({
-    ...member,
-    password: '[REDACTED]',
-  }));
+  return members.map<MemberRecord>((member) => sanitizeMember(member));
 };
 
 export interface UpgradeToAdminInput {
@@ -170,10 +252,7 @@ export const getMemberById = async (id: number): Promise<MemberRecord> => {
   if (!member) {
     throw new HttpError('Member not found', 404);
   }
-  return {
-    ...member,
-    password: '[REDACTED]',
-  };
+  return sanitizeMember(member);
 };
 
 /**
@@ -191,10 +270,7 @@ export const updateMemberById = async (id: number, input: UpdateMemberPayload): 
     };
     
     const updated = await updateMember(id, repositoryInput);
-    return {
-      ...updated,
-      password: '[REDACTED]',
-    };
+    return sanitizeMember(updated);
   } catch (error) {
     if (error instanceof Error && error.message === 'Member not found') {
       throw new HttpError('Member not found', 404);
@@ -215,4 +291,42 @@ export const deleteMemberById = async (id: number): Promise<void> => {
     }
     throw error;
   }
+};
+
+/**
+ * Verifies a member's email using a signed token.
+ */
+export const verifyMemberEmail = async (token: string) => {
+  const tokenHash = hashToken(token);
+  const member = await findMemberByVerificationTokenHash(tokenHash);
+  if (!member) {
+    throw new HttpError('Invalid or expired verification token', 400);
+  }
+  const expiresAt = member.email_verification_expires_at;
+  if (!expiresAt || new Date(expiresAt).getTime() < Date.now()) {
+    throw new HttpError('Verification token expired', 400);
+  }
+  const updatedMember = await markEmailVerified(member.memberid);
+  return {
+    memberId: updatedMember.memberid,
+    email: updatedMember.email,
+    verifiedAt: updatedMember.email_verified_at,
+  };
+};
+
+/**
+ * Resends a verification email to an unverified member.
+ */
+export const resendEmailVerification = async (email: string): Promise<void> => {
+  const member = await findMemberByEmail(email);
+  if (!member) {
+    throw new HttpError('Member not found', 404);
+  }
+  if (member.email_verified) {
+    throw new HttpError('Email already verified', 409);
+  }
+  const { token, tokenHash, expiresAt } = buildVerificationToken();
+  const sentAt = new Date();
+  await setEmailVerificationToken(member.memberid, tokenHash, expiresAt, sentAt);
+  await sendVerificationEmail(member, token);
 };

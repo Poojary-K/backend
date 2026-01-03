@@ -15,6 +15,7 @@ This directory contains all configuration-related code for the application, incl
 
 **Configuration Options**:
 - `port`: Server port number (default: 4000)
+- `appBaseUrl`: Base URL for backend links (default: http://localhost:4000)
 - `databaseUrl`: PostgreSQL connection string
 - `jwtSecret`: Secret key for JWT token signing
 - `jwtExpiresIn`: JWT token expiration time (default: "1h")
@@ -83,6 +84,7 @@ Create a `.env` file in the project root with:
 
 ```env
 PORT=4000
+APP_BASE_URL=http://localhost:4000
 DATABASE_URL=postgres://user:password@localhost:5432/funds
 JWT_SECRET=your-secret-key-change-in-production
 JWT_EXPIRES_IN=1h
@@ -116,7 +118,6 @@ For tests, you may need to:
 - Use a separate test database
 - Call `closePool()` after tests to clean up connections
 - Mock the database functions if needed
-
 
 
 
