@@ -3,14 +3,18 @@ import type { ContributionRecord } from '../repositories/contributionRepository.
 import { listCauseImages } from '../repositories/causeImageRepository.js';
 import { listContributionImages } from '../repositories/contributionImageRepository.js';
 import { findMemberById, listMembers, type MemberRecord } from '../repositories/memberRepository.js';
-import { sendTemplatedEmail } from './emailService.js';
+import { sendTemplatedEmail, type EmailTemplateKey } from './emailService.js';
 
 const formatDate = (value: Date | string | null | undefined): string => {
   if (!value) {
     return 'N/A';
   }
   const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime()) ? 'N/A' : date.toISOString().split('T')[0];
+  if (Number.isNaN(date.getTime())) {
+    return 'N/A';
+  }
+  const [datePart = 'N/A'] = date.toISOString().split('T');
+  return datePart;
 };
 
 const normalizeEmail = (value: string | null): string | null => {
@@ -143,7 +147,7 @@ export const notifyContributionDeleted = async (contribution: ContributionRecord
   }
 };
 
-const notifyCauseToMembers = async (templateKey: string, cause: CauseRecord): Promise<void> => {
+const notifyCauseToMembers = async (templateKey: EmailTemplateKey, cause: CauseRecord): Promise<void> => {
   try {
     const members = await listMembers();
     const images = await listCauseImages(cause.causeid);

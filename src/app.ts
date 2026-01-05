@@ -11,9 +11,9 @@ import { rateLimiter } from './middlewares/rateLimiter.js';
 export const createApp = () => {
   const app = express();
   
-  // CORS configuration - allow requests from Angular dev server
+  // CORS configuration - allow any origin (required when using credentials)
   app.use(cors({
-    origin: ['http://localhost:4200', 'http://localhost:3000', 'http://172.25.10.114:4200'], // Angular dev server
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -21,6 +21,10 @@ export const createApp = () => {
   
   app.use(helmet());
   app.use(express.json());
+
+  app.get('/health', (_req, res) => {
+    res.status(200).json({ status: 'ok' });
+  });
   
   // Apply rate limiting to all API routes
   app.use('/api', rateLimiter);
@@ -29,5 +33,3 @@ export const createApp = () => {
   app.use(errorHandler);
   return app;
 };
-
-

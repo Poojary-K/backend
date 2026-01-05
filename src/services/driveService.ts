@@ -68,12 +68,15 @@ const findFolderId = async (folderName: string, parentId?: string): Promise<stri
 
 const createFolder = async (folderName: string, parentId?: string): Promise<string> => {
   const drive = await getDriveClient();
+  const requestBody: drive_v3.Schema$File = {
+    name: folderName,
+    mimeType: 'application/vnd.google-apps.folder',
+  };
+  if (parentId) {
+    requestBody.parents = [parentId];
+  }
   const response = await drive.files.create({
-    requestBody: {
-      name: folderName,
-      mimeType: 'application/vnd.google-apps.folder',
-      parents: parentId ? [parentId] : undefined,
-    },
+    requestBody,
     fields: 'id',
     supportsAllDrives: true,
   });

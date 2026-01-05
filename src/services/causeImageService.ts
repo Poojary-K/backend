@@ -27,7 +27,8 @@ const formatDate = (value: Date | string): string => {
   if (Number.isNaN(date.getTime())) {
     return 'unknown-date';
   }
-  return date.toISOString().split('T')[0];
+  const [datePart = 'unknown-date'] = date.toISOString().split('T');
+  return datePart;
 };
 
 const slugify = (value: string): string =>
