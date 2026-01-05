@@ -36,6 +36,7 @@ export type EmailTemplateKey =
 let templatesCache: EmailTemplates | null = null;
 let transporterCache: Transporter | null = null;
 let layoutCache: string | null = null;
+let mailConfigLogged = false;
 
 const templatePaths = [
   path.resolve(process.cwd(), 'src/config/emailTemplates.json'),
@@ -140,12 +141,25 @@ const normalizeRecipients = (recipients: string | string[]): string[] => {
   return Array.from(new Set(list.map((recipient) => recipient.trim()).filter(Boolean)));
 };
 
+const logMailConfigOnce = (): void => {
+  if (mailConfigLogged) {
+    return;
+  }
+  mailConfigLogged = true;
+  const { mailEnabled, mailFrom, mailUser, mailPass } = getConfig();
+  console.log('MAIL ENABLED:', mailEnabled);
+  console.log('MAIL FROM:', mailFrom);
+  console.log('MAIL USER:', mailUser ? 'set' : 'missing');
+  console.log('MAIL PASS:', mailPass ? 'set' : 'missing');
+};
+
 export const sendTemplatedEmail = async (
   templateKey: EmailTemplateKey,
   recipients: string | string[],
   data: Record<string, string>,
 ): Promise<void> => {
   const { mailEnabled, mailFrom, mailUser, mailPass } = getConfig();
+  logMailConfigOnce();
   const resolvedRecipients = normalizeRecipients(recipients);
 
   if (!mailEnabled) {
