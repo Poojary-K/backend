@@ -14,6 +14,7 @@ export interface AppConfig {
   readonly bcryptSaltRounds: number;
   readonly adminSecretCode: string;
   readonly mailEnabled: boolean;
+  readonly mailProvider: 'auto' | 'smtp' | 'resend';
   readonly mailFrom: string;
   readonly mailUser: string;
   readonly mailPass: string;
@@ -42,6 +43,14 @@ const parseBoolean = (value: string | undefined, fallback: boolean): boolean => 
   return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
 };
 
+const parseMailProvider = (value: string | undefined): 'auto' | 'smtp' | 'resend' => {
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === 'smtp' || normalized === 'resend') {
+    return normalized;
+  }
+  return 'auto';
+};
+
 const hasResendConfig = Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM);
 const hasSmtpConfig = Boolean(process.env.MAIL_FROM && process.env.MAIL_PASS);
 
@@ -57,6 +66,7 @@ const config: AppConfig = {
     process.env.MAIL_ENABLED,
     hasResendConfig || hasSmtpConfig,
   ),
+  mailProvider: parseMailProvider(process.env.MAIL_PROVIDER),
   mailFrom: process.env.MAIL_FROM ?? '',
   mailUser: process.env.MAIL_USER ?? process.env.MAIL_FROM ?? '',
   mailPass: process.env.MAIL_PASS ?? '',

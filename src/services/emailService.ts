@@ -147,8 +147,9 @@ const logMailConfigOnce = (): void => {
     return;
   }
   mailConfigLogged = true;
-  const { mailEnabled, mailFrom, mailUser, mailPass, resendApiKey } = getConfig();
+  const { mailEnabled, mailProvider, mailFrom, mailUser, mailPass, resendApiKey } = getConfig();
   console.log('MAIL ENABLED:', mailEnabled);
+  console.log('MAIL PROVIDER:', mailProvider);
   console.log('MAIL FROM:', mailFrom);
   console.log('MAIL USER:', mailUser ? 'set' : 'missing');
   console.log('MAIL PASS:', mailPass ? 'set' : 'missing');
@@ -215,7 +216,7 @@ export const sendTemplatedEmail = async (
   recipients: string | string[],
   data: Record<string, string>,
 ): Promise<void> => {
-  const { mailEnabled, mailFrom, mailUser, mailPass, resendApiKey } = getConfig();
+  const { mailEnabled, mailProvider, mailFrom, mailUser, mailPass, resendApiKey } = getConfig();
   logMailConfigOnce();
   const resolvedRecipients = normalizeRecipients(recipients);
 
@@ -241,6 +242,32 @@ export const sendTemplatedEmail = async (
   const html = applyLayout(layout, content);
 
   const smtpFrom = mailFrom || mailUser || '';
+  if (mailProvider === 'smtp') {
+    if (!smtpConfigured) {
+      console.warn('SMTP configuration is missing. Skipping email send.');
+      return;
+    }
+    try {
+      await sendViaSmtp(templateKey, smtpFrom, resolvedRecipients, subject, html);
+    } catch (error) {
+      console.error(`SMTP failed (${templateKey}).`, error);
+    }
+    return;
+  }
+
+  if (mailProvider === 'resend') {
+    if (!resendConfigured) {
+      console.warn('Resend configuration is missing. Skipping email send.');
+      return;
+    }
+    try {
+      await sendViaResend(templateKey, mailFrom, resolvedRecipients, subject, html, resendApiKey);
+    } catch (error) {
+      console.error(`Resend failed (${templateKey}).`, error);
+    }
+    return;
+  }
+
   if (smtpConfigured && !smtpDisabledAfterFailure) {
     try {
       await sendViaSmtp(templateKey, smtpFrom, resolvedRecipients, subject, html);
