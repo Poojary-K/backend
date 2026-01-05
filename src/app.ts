@@ -13,7 +13,7 @@ export const createApp = () => {
   
   // CORS configuration - allow requests from Angular dev server
   app.use(cors({
-    origin: ['http://localhost:4200', 'http://localhost:3000', 'http://10.235.125.1:4200'], // Angular dev server
+    origin: ['http://localhost:4200', 'http://localhost:3000', 'http://172.25.10.114:4200'], // Angular dev server
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
