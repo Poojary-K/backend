@@ -33,7 +33,8 @@ const buildVerificationToken = (): { token: string; tokenHash: string; expiresAt
 
 const buildVerificationUrl = (token: string): string => {
   const { appBaseUrl } = getConfig();
-  const url = new URL('/api/auth/verify-email', appBaseUrl);
+  const normalizedBaseUrl = appBaseUrl.endsWith('/') ? appBaseUrl : `${appBaseUrl}/`;
+  const url = new URL('api/auth/verify-email', normalizedBaseUrl);
   url.searchParams.set('token', token);
   return url.toString();
 };
