@@ -17,6 +17,7 @@ export interface AppConfig {
   readonly mailFrom: string;
   readonly mailUser: string;
   readonly mailPass: string;
+  readonly resendApiKey: string;
   readonly gdriveParentFolderId: string;
   readonly gdriveContributionFolderId: string;
   readonly gdriveCauseFolderId: string;
@@ -41,6 +42,9 @@ const parseBoolean = (value: string | undefined, fallback: boolean): boolean => 
   return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
 };
 
+const hasResendConfig = Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM);
+const hasSmtpConfig = Boolean(process.env.MAIL_FROM && process.env.MAIL_PASS);
+
 const config: AppConfig = {
   port: parseNumber(process.env.PORT, 4000),
   appBaseUrl: process.env.APP_BASE_URL ?? 'http://localhost:4000',
@@ -51,11 +55,12 @@ const config: AppConfig = {
   adminSecretCode: process.env.ADMIN_SECRET_CODE ?? 'admin-secret-change-me',
   mailEnabled: parseBoolean(
     process.env.MAIL_ENABLED,
-    Boolean(process.env.MAIL_FROM && process.env.MAIL_PASS),
+    hasResendConfig || hasSmtpConfig,
   ),
   mailFrom: process.env.MAIL_FROM ?? '',
   mailUser: process.env.MAIL_USER ?? process.env.MAIL_FROM ?? '',
   mailPass: process.env.MAIL_PASS ?? '',
+  resendApiKey: process.env.RESEND_API_KEY ?? '',
   gdriveParentFolderId: process.env.GDRIVE_PARENT_FOLDER_ID ?? '',
   gdriveContributionFolderId: process.env.GDRIVE_CONTRIB_FOLDER_ID ?? '',
   gdriveCauseFolderId: process.env.GDRIVE_CAUSE_FOLDER_ID ?? '',
