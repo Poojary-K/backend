@@ -8,6 +8,7 @@ dotenv.config();
 export interface AppConfig {
   readonly port: number;
   readonly appBaseUrl: string;
+  readonly clientBaseUrl: string;
   readonly databaseUrl: string;
   readonly jwtSecret: string;
   readonly jwtExpiresIn: string;
@@ -57,6 +58,7 @@ const hasSmtpConfig = Boolean(process.env.MAIL_FROM && process.env.MAIL_PASS);
 const config: AppConfig = {
   port: parseNumber(process.env.PORT, 4000),
   appBaseUrl: process.env.APP_BASE_URL ?? 'http://localhost:4000',
+  clientBaseUrl: process.env.CLIENT_BASE_URL ?? '',
   databaseUrl: process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5432/funds',
   jwtSecret: process.env.JWT_SECRET ?? 'dev-secret-change-me',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '1h',

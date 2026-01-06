@@ -37,3 +37,17 @@ export const resendVerificationSchema = z.object({
   email: z.string().trim().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, { message: 'Invalid email address' }),
 });
 
+/**
+ * Schema for requesting a password reset email.
+ */
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, { message: 'Invalid email address' }),
+});
+
+/**
+ * Schema for resetting a password with a token.
+ */
+export const resetPasswordSchema = z.object({
+  token: z.string().trim().min(1),
+  newPassword: z.string().min(8),
+});

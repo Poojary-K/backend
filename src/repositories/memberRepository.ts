@@ -1,4 +1,4 @@
-import type { QueryResult } from 'pg';
+import type { PoolClient, QueryResult } from 'pg';
 import { query } from '../config/database.js';
 
 export interface MemberRecord {
@@ -245,6 +245,32 @@ export const markEmailVerified = async (memberId: number): Promise<MemberRecord>
   const row = result.rows[0];
   if (!row) {
     throw new Error('Failed to mark email verified');
+  }
+  return row;
+};
+
+/**
+ * Updates a member password hash.
+ */
+export const updateMemberPassword = async (
+  memberId: number,
+  passwordHash: string,
+  client?: PoolClient,
+): Promise<MemberRecord> => {
+  const text = `
+    UPDATE members
+    SET password = $1
+    WHERE memberid = $2
+    RETURNING memberid, name, email, phone, password, joinedon, is_admin,
+      email_verified, email_verified_at, email_verification_token_hash,
+      email_verification_expires_at, email_verification_sent_at;
+  `;
+  const result = client
+    ? await client.query<MemberRecord>(text, [passwordHash, memberId])
+    : await query<MemberRecord>(text, [passwordHash, memberId]);
+  const row = result.rows[0];
+  if (!row) {
+    throw new Error('Member not found');
   }
   return row;
 };

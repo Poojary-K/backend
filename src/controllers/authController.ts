@@ -1,7 +1,15 @@
 import type { Request, Response, NextFunction } from 'express';
 import { authenticateMember, registerMember, verifyMemberEmail, resendEmailVerification } from '../services/memberService.js';
+import { requestPasswordReset, resetPassword } from '../services/passwordResetService.js';
 import type { z } from 'zod';
-import { registerSchema, loginSchema, verifyEmailSchema, resendVerificationSchema } from '../schemas/authSchemas.js';
+import {
+  registerSchema,
+  loginSchema,
+  verifyEmailSchema,
+  resendVerificationSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+} from '../schemas/authSchemas.js';
 import { HttpError } from '../middlewares/errorHandler.js';
 
 const wantsHtml = (req: Request): boolean => {
@@ -150,6 +158,35 @@ export const resendVerification = async (req: Request, res: Response, next: Next
     const payload = req.body as z.infer<typeof resendVerificationSchema>;
     await resendEmailVerification(payload.email);
     res.status(200).json({ success: true, message: 'Verification email sent' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Sends a password reset email if the account exists.
+ */
+export const forgotPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const payload = req.body as z.infer<typeof forgotPasswordSchema>;
+    await requestPasswordReset(payload.email);
+    res.status(200).json({
+      success: true,
+      message: 'If the email exists, a password reset link has been sent.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Resets a member password using a valid reset token.
+ */
+export const resetPasswordHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const payload = req.body as z.infer<typeof resetPasswordSchema>;
+    await resetPassword(payload.token, payload.newPassword);
+    res.status(200).json({ success: true, message: 'Password updated successfully' });
   } catch (error) {
     next(error);
   }
