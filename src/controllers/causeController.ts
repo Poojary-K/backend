@@ -28,6 +28,8 @@ export const createCauseWithImagesHandler = async (req: Request, res: Response, 
       title: req.body.title,
       description: req.body.description,
       amount: req.body.amount !== undefined && req.body.amount !== '' ? Number.parseFloat(req.body.amount) : undefined,
+      createdat:
+        req.body.createdat !== undefined && req.body.createdat !== '' ? String(req.body.createdat) : undefined,
     } as z.infer<typeof causeSchema>;
 
     const parsed = causeSchema.safeParse(payload);
@@ -127,4 +129,3 @@ export const deleteCauseHandler = async (req: Request, res: Response, next: Next
     next(error);
   }
 };
-

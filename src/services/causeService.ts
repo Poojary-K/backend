@@ -15,6 +15,7 @@ export interface CauseInput {
   readonly title: string;
   readonly description?: string | undefined;
   readonly amount?: number | undefined;
+  readonly createdat?: Date | undefined;
 }
 
 /**

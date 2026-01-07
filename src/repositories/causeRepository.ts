@@ -13,18 +13,25 @@ export interface CreateCauseInput {
   readonly title: string;
   readonly description?: string | undefined;
   readonly amount?: number | undefined;
+  readonly createdat?: Date | undefined;
 }
 
 /**
  * Persists a cause and returns the stored database row.
  */
 export const createCause = async (input: CreateCauseInput): Promise<CauseRecord> => {
+  const columns: string[] = ['title', 'description', 'amount'];
+  const values: unknown[] = [input.title, input.description ?? null, input.amount ?? null];
+  if (input.createdat) {
+    columns.push('createdat');
+    values.push(input.createdat);
+  }
+  const placeholders = values.map((_, index) => `$${index + 1}`);
   const text = `
-    INSERT INTO causes (title, description, amount)
-    VALUES ($1, $2, $3)
+    INSERT INTO causes (${columns.join(', ')})
+    VALUES (${placeholders.join(', ')})
     RETURNING causeid, title, description, amount, createdat;
   `;
-  const values = [input.title, input.description ?? null, input.amount ?? null];
   const result = await query<CauseRecord>(text, values);
   const row = result.rows[0];
   if (!row) {
@@ -64,6 +71,7 @@ export interface UpdateCauseInput {
   readonly title?: string | undefined;
   readonly description?: string | undefined;
   readonly amount?: number | undefined;
+  readonly createdat?: Date | undefined;
 }
 
 /**
@@ -85,6 +93,10 @@ export const updateCause = async (id: number, input: UpdateCauseInput): Promise<
   if (input.amount !== undefined) {
     updates.push(`amount = $${paramIndex++}`);
     values.push(input.amount);
+  }
+  if (input.createdat !== undefined) {
+    updates.push(`createdat = $${paramIndex++}`);
+    values.push(input.createdat);
   }
 
   if (updates.length === 0) {
@@ -121,4 +133,3 @@ export const deleteCause = async (id: number): Promise<void> => {
     throw new Error('Cause not found');
   }
 };
-
