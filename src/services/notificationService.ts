@@ -63,8 +63,7 @@ const buildContributionData = (contribution: ContributionRecord, member: MemberR
   contributionId: String(contribution.contributionid),
 });
 
-const buildCauseData = (cause: CauseRecord, member: MemberRecord): Record<string, string> => ({
-  memberName: member.name,
+const buildCauseData = (cause: CauseRecord): Record<string, string> => ({
   title: cause.title,
   description: cause.description ?? 'No description provided.',
   amount: cause.amount ?? 'N/A',
@@ -152,24 +151,18 @@ const notifyCauseToMembers = async (templateKey: EmailTemplateKey, cause: CauseR
     const members = await listMembers();
     const images = await listCauseImages(cause.causeid);
     const imagesHtml = buildImagesHtml(images.map((image) => image.url));
-    const tasks = members
-      .map((member) => {
-        const email = normalizeEmail(member.email);
-        if (!email) {
-          return null;
-        }
-        return sendTemplatedEmail(templateKey, email, {
-          ...buildCauseData(cause, member),
-          imagesHtml,
-        });
-      })
-      .filter((task): task is Promise<void> => task !== null);
+    const emails = members
+      .map((member) => normalizeEmail(member.email))
+      .filter((email): email is string => email !== null);
 
-    const results = await Promise.allSettled(tasks);
-    const failures = results.filter((result) => result.status === 'rejected');
-    if (failures.length > 0) {
-      console.error(`Failed to send ${failures.length} ${templateKey} emails.`);
+    if (emails.length === 0) {
+      return;
     }
+
+    await sendTemplatedEmail(templateKey, emails, {
+      ...buildCauseData(cause),
+      imagesHtml,
+    });
   } catch (error) {
     console.error(`Failed to send ${templateKey} emails.`, error);
   }

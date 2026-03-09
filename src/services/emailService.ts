@@ -172,16 +172,14 @@ const sendViaSmtp = async (
     throw new Error('SMTP disabled after previous failure');
   }
   const transporter = getTransporter();
-  for (const recipient of recipients) {
-    console.log(`Sending email via SMTP (${templateKey}) to ${recipient}`);
-    const info = await transporter.sendMail({
-      from,
-      to: recipient,
-      subject,
-      html,
-    });
-    console.log(`Email sent via SMTP (${templateKey}) to ${recipient}: ${info.messageId}`);
-  }
+  console.log(`Sending email via SMTP (${templateKey}) to ${recipients.join(', ')}`);
+  const info = await transporter.sendMail({
+    from,
+    to: recipients,
+    subject,
+    html,
+  });
+  console.log(`Email sent via SMTP (${templateKey}) to ${recipients.length} recipients: ${info.messageId}`);
 };
 
 const sendViaResend = async (
