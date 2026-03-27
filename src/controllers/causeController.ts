@@ -5,6 +5,9 @@ import { notifyCauseCreated } from '../services/notificationService.js';
 import type { z } from 'zod';
 import { causeSchema } from '../schemas/causeSchemas.js';
 
+const CAUSE_IMAGE_UPLOAD_WARNING =
+  'Images could not be uploaded. The cause was saved; you can add images later from the cause details.';
+
 /**
  * Creates a fundraising cause.
  * Request body is validated by validateRequest middleware.
@@ -40,12 +43,22 @@ export const createCauseWithImagesHandler = async (req: Request, res: Response, 
 
     const cause = await registerCause(parsed.data, { notify: false });
     const files = req.files as Express.Multer.File[] | undefined;
+    const warnings: string[] = [];
     if (files && files.length > 0) {
-      await addCauseImages(cause.causeid, files, { notify: false });
+      try {
+        await addCauseImages(cause.causeid, files, { notify: false });
+      } catch (imageError) {
+        console.error('Cause recorded but image upload failed', imageError);
+        warnings.push(CAUSE_IMAGE_UPLOAD_WARNING);
+      }
     }
 
     void notifyCauseCreated(cause);
-    res.status(201).json({ success: true, data: cause });
+    res.status(201).json({
+      success: true,
+      data: cause,
+      ...(warnings.length > 0 ? { warnings } : {}),
+    });
   } catch (error) {
     next(error);
   }

@@ -13,6 +13,9 @@ import { HttpError } from '../middlewares/errorHandler.js';
 import type { z } from 'zod';
 import { contributionSchema } from '../schemas/contributionSchemas.js';
 
+const CONTRIBUTION_IMAGE_UPLOAD_WARNING =
+  'Images could not be uploaded. The contribution was saved; you can add images later from the contribution details.';
+
 /**
  * Handles the creation of contributions.
  * Request body is validated by validateRequest middleware.
@@ -50,12 +53,22 @@ export const createContributionWithImagesHandler = async (
 
     const contribution = await recordContribution(parsed.data, { notify: false });
     const files = req.files as Express.Multer.File[] | undefined;
+    const warnings: string[] = [];
     if (files && files.length > 0) {
-      await addContributionImages(contribution.contributionid, files, { notify: false });
+      try {
+        await addContributionImages(contribution.contributionid, files, { notify: false });
+      } catch (imageError) {
+        console.error('Contribution recorded but image upload failed', imageError);
+        warnings.push(CONTRIBUTION_IMAGE_UPLOAD_WARNING);
+      }
     }
 
     void notifyContributionCreated(contribution);
-    res.status(201).json({ success: true, data: contribution });
+    res.status(201).json({
+      success: true,
+      data: contribution,
+      ...(warnings.length > 0 ? { warnings } : {}),
+    });
   } catch (error) {
     next(error);
   }
