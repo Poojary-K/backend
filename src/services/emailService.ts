@@ -95,6 +95,28 @@ const escapeHtml = (value: string): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
+const escapeAttr = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/'/g, '&#39;');
+
+/** Logo in HTML emails must load from a public absolute URL (same asset as the web app). */
+const buildLogoSection = (clientBaseUrl: string): string => {
+  const base = clientBaseUrl.trim().replace(/\/+$/, '');
+  if (!base) {
+    return '';
+  }
+  const homeUrl = `${base}/`;
+  const logoUrl = `${base}/logo/app-logo.jpg`;
+  return `<div style="text-align:center;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid #ececec;">
+  <a href="${escapeAttr(homeUrl)}" style="text-decoration:none;">
+    <img src="${escapeAttr(logoUrl)}" alt="For the Society" width="200" style="max-width:200px;height:auto;display:block;margin:0 auto;border:0;" />
+  </a>
+</div>`;
+};
+
 const renderTemplate = (template: string, data: Record<string, string>): string =>
   template.replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (_match, key: string) => {
     const value = data[key] ?? '';
@@ -104,8 +126,10 @@ const renderTemplate = (template: string, data: Record<string, string>): string 
     return escapeHtml(value);
   });
 
-const applyLayout = (layout: string, content: string): string =>
-  layout.replace(/{{\s*content\s*}}/g, () => content);
+const applyLayout = (layout: string, content: string, logoSection: string): string =>
+  layout
+    .replace(/{{\s*content\s*}}/g, () => content)
+    .replace(/{{\s*logo_section\s*}}/g, () => logoSection);
 
 const getTransporter = (): Transporter => {
   if (transporterCache) {
@@ -242,7 +266,8 @@ export const sendTemplatedEmail = async (
   const subject = renderTemplate(template.subject, data);
   const content = renderTemplate(template.content, data);
   const layout = await loadLayout();
-  const html = applyLayout(layout, content);
+  const logoSection = buildLogoSection(getConfig().clientBaseUrl);
+  const html = applyLayout(layout, content, logoSection);
 
   const smtpFrom = mailFrom || mailUser || '';
   if (mailProvider === 'smtp') {
