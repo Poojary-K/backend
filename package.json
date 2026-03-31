@@ -14,7 +14,9 @@
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "migrate": "node-pg-migrate up",
-    "migrate:down": "node-pg-migrate down"
+    "migrate:down": "node-pg-migrate down",
+    "db:backup": "bash scripts/db-backup.sh",
+    "db:restore": "bash scripts/db-restore.sh"
   },
   "keywords": [],
   "author": "",

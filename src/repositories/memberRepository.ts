@@ -9,6 +9,7 @@ export interface MemberRecord {
   readonly password: string;
   readonly joinedon: Date;
   readonly is_admin: boolean;
+  readonly email_updates_enabled: boolean;
   readonly email_verified: boolean;
   readonly email_verified_at: Date | null;
   readonly email_verification_token_hash: string | null;
@@ -32,6 +33,7 @@ export const createMember = async (input: CreateMemberInput): Promise<MemberReco
     INSERT INTO members (name, email, phone, password, is_admin)
     VALUES ($1, $2, $3, $4, $5)
     RETURNING memberid, name, email, phone, password, joinedon, is_admin,
+      email_updates_enabled,
       email_verified, email_verified_at, email_verification_token_hash,
       email_verification_expires_at, email_verification_sent_at;
   `;
@@ -50,6 +52,7 @@ export const createMember = async (input: CreateMemberInput): Promise<MemberReco
 export const findMemberByEmail = async (email: string): Promise<MemberRecord | null> => {
   const text = `
     SELECT memberid, name, email, phone, password, joinedon, is_admin,
+      email_updates_enabled,
       email_verified, email_verified_at, email_verification_token_hash,
       email_verification_expires_at, email_verification_sent_at
     FROM members
@@ -66,6 +69,7 @@ export const findMemberByEmail = async (email: string): Promise<MemberRecord | n
 export const findMemberById = async (id: number): Promise<MemberRecord | null> => {
   const text = `
     SELECT memberid, name, email, phone, password, joinedon, is_admin,
+      email_updates_enabled,
       email_verified, email_verified_at, email_verification_token_hash,
       email_verification_expires_at, email_verification_sent_at
     FROM members
@@ -82,6 +86,7 @@ export const findMemberById = async (id: number): Promise<MemberRecord | null> =
 export const listMembers = async (): Promise<MemberRecord[]> => {
   const text = `
     SELECT memberid, name, email, phone, password, joinedon, is_admin,
+      email_updates_enabled,
       email_verified, email_verified_at, email_verification_token_hash,
       email_verification_expires_at, email_verification_sent_at
     FROM members
@@ -100,6 +105,7 @@ export const updateMemberAdminStatus = async (id: number, isAdmin: boolean): Pro
     SET is_admin = $1
     WHERE memberid = $2
     RETURNING memberid, name, email, phone, password, joinedon, is_admin,
+      email_updates_enabled,
       email_verified, email_verified_at, email_verification_token_hash,
       email_verification_expires_at, email_verification_sent_at;
   `;
@@ -158,10 +164,35 @@ export const updateMember = async (id: number, input: UpdateMemberInput): Promis
     SET ${updates.join(', ')}
     WHERE memberid = $${paramIndex}
     RETURNING memberid, name, email, phone, password, joinedon, is_admin,
+      email_updates_enabled,
       email_verified, email_verified_at, email_verification_token_hash,
       email_verification_expires_at, email_verification_sent_at;
   `;
   const result = await query<MemberRecord>(text, values);
+  const row = result.rows[0];
+  if (!row) {
+    throw new Error('Member not found');
+  }
+  return row;
+};
+
+/**
+ * Updates whether the member wants cause/contribution notification emails.
+ */
+export const updateMemberEmailUpdatesEnabled = async (
+  id: number,
+  emailUpdatesEnabled: boolean,
+): Promise<MemberRecord> => {
+  const text = `
+    UPDATE members
+    SET email_updates_enabled = $1
+    WHERE memberid = $2
+    RETURNING memberid, name, email, phone, password, joinedon, is_admin,
+      email_updates_enabled,
+      email_verified, email_verified_at, email_verification_token_hash,
+      email_verification_expires_at, email_verification_sent_at;
+  `;
+  const result = await query<MemberRecord>(text, [emailUpdatesEnabled, id]);
   const row = result.rows[0];
   if (!row) {
     throw new Error('Member not found');
@@ -186,6 +217,7 @@ export const deleteMember = async (id: number): Promise<void> => {
 export const findMemberByVerificationTokenHash = async (tokenHash: string): Promise<MemberRecord | null> => {
   const text = `
     SELECT memberid, name, email, phone, password, joinedon, is_admin,
+      email_updates_enabled,
       email_verified, email_verified_at, email_verification_token_hash,
       email_verification_expires_at, email_verification_sent_at
     FROM members
@@ -214,6 +246,7 @@ export const setEmailVerificationToken = async (
         email_verified_at = NULL
     WHERE memberid = $4
     RETURNING memberid, name, email, phone, password, joinedon, is_admin,
+      email_updates_enabled,
       email_verified, email_verified_at, email_verification_token_hash,
       email_verification_expires_at, email_verification_sent_at;
   `;
@@ -238,6 +271,7 @@ export const markEmailVerified = async (memberId: number): Promise<MemberRecord>
         email_verification_sent_at = NULL
     WHERE memberid = $1
     RETURNING memberid, name, email, phone, password, joinedon, is_admin,
+      email_updates_enabled,
       email_verified, email_verified_at, email_verification_token_hash,
       email_verification_expires_at, email_verification_sent_at;
   `;
@@ -262,6 +296,7 @@ export const updateMemberPassword = async (
     SET password = $1
     WHERE memberid = $2
     RETURNING memberid, name, email, phone, password, joinedon, is_admin,
+      email_updates_enabled,
       email_verified, email_verified_at, email_verification_token_hash,
       email_verification_expires_at, email_verification_sent_at;
   `;

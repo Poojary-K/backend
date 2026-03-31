@@ -47,11 +47,16 @@ const sendVerificationEmail = async (member: MemberRecord, token: string): Promi
   }
   const verificationUrl = buildVerificationUrl(token);
   try {
-    await sendTemplatedEmail('auth.verify', member.email, {
-      memberName: member.name,
-      verificationUrl,
-      expiresInSeconds: String(EMAIL_VERIFICATION_TTL_SECONDS),
-    });
+    await sendTemplatedEmail(
+      'auth.verify',
+      member.email,
+      {
+        memberName: member.name,
+        verificationUrl,
+        expiresInSeconds: String(EMAIL_VERIFICATION_TTL_SECONDS),
+      },
+      { unsubscribeMemberId: member.memberid },
+    );
   } catch (error) {
     console.error('Failed to send verification email.', error);
   }
@@ -106,6 +111,7 @@ export const registerMember = async (input: RegisterMemberInput) => {
           phone: existing.phone,
           joinedOn: existing.joinedon,
           isAdmin: existing.is_admin,
+          emailUpdatesEnabled: existing.email_updates_enabled,
           verificationRequired: true,
           verificationExpiresInSeconds: EMAIL_VERIFICATION_TTL_SECONDS,
         };
@@ -139,6 +145,7 @@ export const registerMember = async (input: RegisterMemberInput) => {
       phone: storedMember.phone,
       joinedOn: storedMember.joinedon,
       isAdmin: storedMember.is_admin,
+      emailUpdatesEnabled: storedMember.email_updates_enabled,
       verificationRequired: true,
       verificationExpiresInSeconds: EMAIL_VERIFICATION_TTL_SECONDS,
     };
@@ -156,6 +163,7 @@ export const registerMember = async (input: RegisterMemberInput) => {
     phone: storedMember.phone,
     joinedOn: storedMember.joinedon,
     isAdmin: storedMember.is_admin,
+    emailUpdatesEnabled: storedMember.email_updates_enabled,
     token,
   };
 };
@@ -189,6 +197,7 @@ export const authenticateMember = async (input: LoginInput) => {
       phone: member.phone,
       joinedOn: member.joinedon,
       isAdmin: member.is_admin,
+      emailUpdatesEnabled: member.email_updates_enabled,
     },
   };
 };
@@ -243,6 +252,7 @@ export const upgradeToAdmin = async (input: UpgradeToAdminInput) => {
       phone: updatedMember.phone,
       joinedOn: updatedMember.joinedon,
       isAdmin: updatedMember.is_admin,
+      emailUpdatesEnabled: updatedMember.email_updates_enabled,
     },
   };
 };

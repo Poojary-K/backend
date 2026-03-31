@@ -1,0 +1,28 @@
+# Local PostgreSQL 17 — same major version as Supabase for dump/restore parity.
+# Usage:
+#   cd backend
+#   Set POSTGRES_* and DATABASE_URL in .env (see env.local-postgres.example), then:
+#   docker compose -f docker-compose.postgres.yml --env-file .env up -d
+#
+# Expected in .env: POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_PORT (optional)
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-funds}
+    volumes:
+      - postgres17_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres17_data:

@@ -2,6 +2,7 @@ import nodemailer, { type Transporter } from 'nodemailer';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { getConfig } from '../config/env.js';
+import { signEmailUnsubscribeToken } from '../utils/emailUnsubscribeToken.js';
 
 interface EmailTemplate {
   readonly subject: string;
@@ -126,10 +127,31 @@ const renderTemplate = (template: string, data: Record<string, string>): string 
     return escapeHtml(value);
   });
 
-const applyLayout = (layout: string, content: string, logoSection: string): string =>
+const buildUnsubscribeAbsoluteUrl = (token: string): string => {
+  const base = getConfig().appBaseUrl.trim().replace(/\/+$/, '');
+  const qs = new URLSearchParams({ token });
+  return `${base}/api/email/unsubscribe?${qs.toString()}`;
+};
+
+const buildUnsubscribeFooterHtml = (memberId: number): string => {
+  const token = signEmailUnsubscribeToken(memberId);
+  const url = buildUnsubscribeAbsoluteUrl(token);
+  const safeUrl = escapeAttr(url);
+  return `<div style="margin-top:20px;padding-top:16px;border-top:1px solid #ececec;font-size:12px;color:#777;text-align:center;line-height:1.5;">
+<a href="${safeUrl}" style="color:#2563eb;">Unsubscribe</a> from cause and contribution emails.<br/>
+<span style="color:#999;">You will still receive account emails (such as verification and password reset).</span>
+</div>`;
+};
+
+const applyLayout = (layout: string, content: string, logoSection: string, unsubscribeFooterHtml: string): string =>
   layout
     .replace(/{{\s*content\s*}}/g, () => content)
-    .replace(/{{\s*logo_section\s*}}/g, () => logoSection);
+    .replace(/{{\s*logo_section\s*}}/g, () => logoSection)
+    .replace(/{{\s*unsubscribe_footer_html\s*}}/g, () => unsubscribeFooterHtml);
+
+export interface SendTemplatedEmailOptions {
+  readonly unsubscribeMemberId: number;
+}
 
 const getTransporter = (): Transporter => {
   if (transporterCache) {
@@ -242,6 +264,7 @@ export const sendTemplatedEmail = async (
   templateKey: EmailTemplateKey,
   recipients: string | string[],
   data: Record<string, string>,
+  options: SendTemplatedEmailOptions,
 ): Promise<void> => {
   const { mailEnabled, mailProvider, mailFrom, mailUser, mailPass, resendApiKey } = getConfig();
   logMailConfigOnce();
@@ -267,7 +290,8 @@ export const sendTemplatedEmail = async (
   const content = renderTemplate(template.content, data);
   const layout = await loadLayout();
   const logoSection = buildLogoSection(getConfig().clientBaseUrl);
-  const html = applyLayout(layout, content, logoSection);
+  const unsubscribeFooterHtml = buildUnsubscribeFooterHtml(options.unsubscribeMemberId);
+  const html = applyLayout(layout, content, logoSection, unsubscribeFooterHtml);
 
   const smtpFrom = mailFrom || mailUser || '';
   if (mailProvider === 'smtp') {

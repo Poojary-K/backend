@@ -29,6 +29,12 @@ export const verifyToken = (token: string): AuthTokenPayload => {
   if (typeof decoded === 'string') {
     throw new TypeError('Invalid token payload');
   }
+  if (typeof decoded === 'object' && decoded !== null && 'purpose' in decoded) {
+    const purpose = (decoded as { purpose?: unknown }).purpose;
+    if (purpose === 'email_unsubscribe') {
+      throw new TypeError('Invalid token payload');
+    }
+  }
   return decoded as AuthTokenPayload;
 };
 

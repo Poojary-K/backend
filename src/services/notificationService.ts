@@ -90,13 +90,21 @@ export const notifyContributionCreated = async (
     if (!email) {
       return;
     }
+    if (!resolvedMember.email_updates_enabled) {
+      return;
+    }
 
     const images = await listContributionImages(contribution.contributionid);
     const imagesHtml = buildImagesHtml(images.map((image) => image.url));
-    await sendTemplatedEmail('contribution.created', email, {
-      ...buildContributionData(contribution, resolvedMember),
-      imagesHtml,
-    });
+    await sendTemplatedEmail(
+      'contribution.created',
+      email,
+      {
+        ...buildContributionData(contribution, resolvedMember),
+        imagesHtml,
+      },
+      { unsubscribeMemberId: resolvedMember.memberid },
+    );
   } catch (error) {
     console.error('Failed to send contribution created email.', error);
   }
@@ -112,13 +120,21 @@ export const notifyContributionUpdated = async (contribution: ContributionRecord
     if (!email) {
       return;
     }
+    if (!resolvedMember.email_updates_enabled) {
+      return;
+    }
 
     const images = await listContributionImages(contribution.contributionid);
     const imagesHtml = buildImagesHtml(images.map((image) => image.url));
-    await sendTemplatedEmail('contribution.updated', email, {
-      ...buildContributionData(contribution, resolvedMember),
-      imagesHtml,
-    });
+    await sendTemplatedEmail(
+      'contribution.updated',
+      email,
+      {
+        ...buildContributionData(contribution, resolvedMember),
+        imagesHtml,
+      },
+      { unsubscribeMemberId: resolvedMember.memberid },
+    );
   } catch (error) {
     console.error('Failed to send contribution updated email.', error);
   }
@@ -134,13 +150,21 @@ export const notifyContributionDeleted = async (contribution: ContributionRecord
     if (!email) {
       return;
     }
+    if (!resolvedMember.email_updates_enabled) {
+      return;
+    }
 
     const images = await listContributionImages(contribution.contributionid);
     const imagesHtml = buildImagesHtml(images.map((image) => image.url));
-    await sendTemplatedEmail('contribution.deleted', email, {
-      ...buildContributionData(contribution, resolvedMember),
-      imagesHtml,
-    });
+    await sendTemplatedEmail(
+      'contribution.deleted',
+      email,
+      {
+        ...buildContributionData(contribution, resolvedMember),
+        imagesHtml,
+      },
+      { unsubscribeMemberId: resolvedMember.memberid },
+    );
   } catch (error) {
     console.error('Failed to send contribution deleted email.', error);
   }
@@ -151,18 +175,20 @@ const notifyCauseToMembers = async (templateKey: EmailTemplateKey, cause: CauseR
     const members = await listMembers();
     const images = await listCauseImages(cause.causeid);
     const imagesHtml = buildImagesHtml(images.map((image) => image.url));
-    const emails = members
-      .map((member) => normalizeEmail(member.email))
-      .filter((email): email is string => email !== null);
+    const payloadBase = { ...buildCauseData(cause), imagesHtml };
 
-    if (emails.length === 0) {
-      return;
+    for (const member of members) {
+      if (!member.email_updates_enabled) {
+        continue;
+      }
+      const email = normalizeEmail(member.email);
+      if (!email) {
+        continue;
+      }
+      await sendTemplatedEmail(templateKey, email, payloadBase, {
+        unsubscribeMemberId: member.memberid,
+      });
     }
-
-    await sendTemplatedEmail(templateKey, emails, {
-      ...buildCauseData(cause),
-      imagesHtml,
-    });
   } catch (error) {
     console.error(`Failed to send ${templateKey} emails.`, error);
   }

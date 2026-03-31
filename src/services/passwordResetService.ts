@@ -38,11 +38,16 @@ const sendPasswordResetEmail = async (member: MemberRecord, token: string): Prom
   }
   const resetUrl = buildResetUrl(token);
   try {
-    await sendTemplatedEmail('auth.reset', member.email, {
-      memberName: member.name,
-      resetUrl,
-      expiresInMinutes: String(PASSWORD_RESET_TTL_MINUTES),
-    });
+    await sendTemplatedEmail(
+      'auth.reset',
+      member.email,
+      {
+        memberName: member.name,
+        resetUrl,
+        expiresInMinutes: String(PASSWORD_RESET_TTL_MINUTES),
+      },
+      { unsubscribeMemberId: member.memberid },
+    );
   } catch (error) {
     console.error('Failed to send password reset email.', error);
   }
