@@ -202,3 +202,48 @@ export const notifyCauseUpdated = async (cause: CauseRecord): Promise<void> =>
 
 export const notifyCauseDeleted = async (cause: CauseRecord): Promise<void> =>
   notifyCauseToMembers('cause.deleted', cause);
+
+export const notifyDbBackupCompleted = async (
+  admin: MemberRecord,
+  fileName: string,
+  fileId: string,
+): Promise<void> => {
+  try {
+    const email = normalizeEmail(admin.email);
+    if (!email) {
+      return;
+    }
+    await sendTemplatedEmail(
+      'backup.completed',
+      email,
+      {
+        memberName: admin.name,
+        fileName,
+        driveUrl: `https://drive.google.com/file/d/${fileId}/view`,
+      },
+      { unsubscribeMemberId: admin.memberid },
+    );
+  } catch (error) {
+    console.error('Failed to send database backup completed email.', error);
+  }
+};
+
+export const notifyDbBackupFailed = async (admin: MemberRecord, errorMessage: string): Promise<void> => {
+  try {
+    const email = normalizeEmail(admin.email);
+    if (!email) {
+      return;
+    }
+    await sendTemplatedEmail(
+      'backup.failed',
+      email,
+      {
+        memberName: admin.name,
+        errorMessage,
+      },
+      { unsubscribeMemberId: admin.memberid },
+    );
+  } catch (error) {
+    console.error('Failed to send database backup failed email.', error);
+  }
+};

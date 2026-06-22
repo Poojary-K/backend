@@ -24,6 +24,10 @@ interface EmailTemplates {
     readonly updated: EmailTemplate;
     readonly deleted: EmailTemplate;
   };
+  readonly backup: {
+    readonly completed: EmailTemplate;
+    readonly failed: EmailTemplate;
+  };
 }
 
 export type EmailTemplateKey =
@@ -34,7 +38,9 @@ export type EmailTemplateKey =
   | 'contribution.deleted'
   | 'cause.created'
   | 'cause.updated'
-  | 'cause.deleted';
+  | 'cause.deleted'
+  | 'backup.completed'
+  | 'backup.failed';
 
 let templatesCache: EmailTemplates | null = null;
 let transporterCache: Transporter | null = null;
@@ -170,8 +176,8 @@ const getTransporter = (): Transporter => {
   return transporterCache;
 };
 
-type EmailTemplateGroup = 'auth' | 'contribution' | 'cause';
-type EmailTemplateAction = 'verify' | 'reset' | 'created' | 'updated' | 'deleted';
+type EmailTemplateGroup = 'auth' | 'contribution' | 'cause' | 'backup';
+type EmailTemplateAction = 'verify' | 'reset' | 'created' | 'updated' | 'deleted' | 'completed' | 'failed';
 
 const getTemplate = async (key: EmailTemplateKey): Promise<EmailTemplate> => {
   const templates = await loadTemplates();
@@ -184,6 +190,15 @@ const getTemplate = async (key: EmailTemplateKey): Promise<EmailTemplate> => {
       return templates.auth.reset;
     }
     throw new Error(`Unknown auth email template action: ${action}`);
+  }
+  if (group === 'backup') {
+    if (action === 'completed') {
+      return templates.backup.completed;
+    }
+    if (action === 'failed') {
+      return templates.backup.failed;
+    }
+    throw new Error(`Unknown backup email template action: ${action}`);
   }
   return templates[group][action as 'created' | 'updated' | 'deleted'];
 };

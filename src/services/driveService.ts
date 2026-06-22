@@ -1,14 +1,16 @@
 import { google, type drive_v3 } from 'googleapis';
+import { createReadStream } from 'node:fs';
 import { Readable } from 'node:stream';
 import path from 'node:path';
 import { HttpError } from '../middlewares/errorHandler.js';
 import { getConfig } from '../config/env.js';
 
-export type DriveFolderKey = 'contributions' | 'causes';
+export type DriveFolderKey = 'contributions' | 'causes' | 'backups';
 
 const folderNames: Record<DriveFolderKey, string> = {
   contributions: 'contributions',
   causes: 'causes',
+  backups: 'backups',
 };
 
 let driveClient: drive_v3.Drive | null = null;
@@ -95,8 +97,14 @@ const resolveFolderId = async (key: DriveFolderKey): Promise<string> => {
     return cached;
   }
 
-  const { gdriveParentFolderId, gdriveContributionFolderId, gdriveCauseFolderId } = getConfig();
-  const configuredId = key === 'contributions' ? gdriveContributionFolderId : gdriveCauseFolderId;
+  const { gdriveParentFolderId, gdriveContributionFolderId, gdriveCauseFolderId, gdriveBackupsFolderId } =
+    getConfig();
+  const configuredId =
+    key === 'contributions'
+      ? gdriveContributionFolderId
+      : key === 'causes'
+        ? gdriveCauseFolderId
+        : gdriveBackupsFolderId;
   if (configuredId) {
     folderCache.set(key, configuredId);
     return configuredId;
@@ -173,4 +181,47 @@ export const deleteDriveFileByUrl = async (url: string): Promise<void> => {
     return;
   }
   await deleteDriveFile(fileId);
+};
+
+export const uploadDriveBuffer = async (
+  folderKey: DriveFolderKey,
+  filePath: string,
+  fileName: string,
+  mimeType: string,
+  options?: { makePublic?: boolean },
+): Promise<{ fileId: string }> => {
+  const drive = await getDriveClient();
+  const folderId = await resolveFolderId(folderKey);
+  const safeName = path.basename(fileName);
+
+  const response = await drive.files.create({
+    requestBody: {
+      name: safeName,
+      parents: [folderId],
+    },
+    media: {
+      mimeType,
+      body: createReadStream(filePath),
+    },
+    fields: 'id',
+    supportsAllDrives: true,
+  });
+
+  const fileId = response.data.id;
+  if (!fileId) {
+    throw new HttpError('Failed to upload file to Google Drive', 500);
+  }
+
+  if (options?.makePublic) {
+    await drive.permissions.create({
+      fileId,
+      requestBody: {
+        type: 'anyone',
+        role: 'reader',
+      },
+      supportsAllDrives: true,
+    });
+  }
+
+  return { fileId };
 };

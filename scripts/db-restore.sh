@@ -19,6 +19,10 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${ENV_FILE:-$ROOT_DIR/.env}"
 
+# shellcheck disable=SC1091
+source "$ROOT_DIR/scripts/lib/load-env.sh"
+load_env_defaults "$ENV_FILE"
+
 if [[ $# -lt 1 ]]; then
   echo "Usage: $0 <backup.sql|backup.sql.gz|backup.dump>" >&2
   exit 1
@@ -37,13 +41,6 @@ if [[ ! -f "$INPUT" ]]; then
     echo "File not found: $INPUT" >&2
     exit 1
   fi
-fi
-
-if [[ -f "$ENV_FILE" ]]; then
-  set -a
-  # shellcheck disable=SC1090
-  source "$ENV_FILE"
-  set +a
 fi
 
 PG_RESTORE_EXTRA_OPTS="${PG_RESTORE_EXTRA_OPTS:-}"

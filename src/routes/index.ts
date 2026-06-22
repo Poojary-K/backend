@@ -6,6 +6,7 @@ import memberRoutes from './memberRoutes.js';
 import contributionRoutes from './contributionRoutes.js';
 import causeRoutes from './causeRoutes.js';
 import fundRoutes from './fundRoutes.js';
+import adminRoutes from './adminRoutes.js';
 
 const router = Router();
 
@@ -16,6 +17,7 @@ router.use('/members', memberRoutes);
 router.use('/contributions', contributionRoutes);
 router.use('/causes', causeRoutes);
 router.use('/funds', fundRoutes);
+router.use('/admin', adminRoutes);
 
 export default router;
 

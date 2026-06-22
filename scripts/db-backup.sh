@@ -17,12 +17,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${ENV_FILE:-$ROOT_DIR/.env}"
 
-if [[ -f "$ENV_FILE" ]]; then
-  set -a
-  # shellcheck disable=SC1090
-  source "$ENV_FILE"
-  set +a
-fi
+# shellcheck disable=SC1091
+source "$ROOT_DIR/scripts/lib/load-env.sh"
+load_env_defaults "$ENV_FILE"
 
 BACKUP_DIR="${BACKUP_DIR:-$ROOT_DIR/backups}"
 mkdir -p "$BACKUP_DIR"
@@ -40,7 +37,7 @@ fi
 run_pg_dump() {
   if [[ -n "${DATABASE_URL:-}" ]]; then
     # shellcheck disable=SC2086
-    pg_dump $PG_DUMP_EXTRA_OPTS "$@"
+    pg_dump $PG_DUMP_EXTRA_OPTS -d "$DATABASE_URL" "$@"
   else
     : "${POSTGRES_USER:?Set DATABASE_URL or POSTGRES_USER}"
     : "${POSTGRES_DB:?Set DATABASE_URL or POSTGRES_DB}"

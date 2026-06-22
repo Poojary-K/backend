@@ -23,6 +23,7 @@ export interface AppConfig {
   readonly gdriveParentFolderId: string;
   readonly gdriveContributionFolderId: string;
   readonly gdriveCauseFolderId: string;
+  readonly gdriveBackupsFolderId: string;
   readonly gdriveMaxFileSizeMb: number;
   readonly gdriveMaxFiles: number;
   readonly gdriveOauthClientId: string;
@@ -76,6 +77,7 @@ const config: AppConfig = {
   gdriveParentFolderId: process.env.GDRIVE_PARENT_FOLDER_ID ?? '',
   gdriveContributionFolderId: process.env.GDRIVE_CONTRIB_FOLDER_ID ?? '',
   gdriveCauseFolderId: process.env.GDRIVE_CAUSE_FOLDER_ID ?? '',
+  gdriveBackupsFolderId: process.env.GDRIVE_BACKUPS_FOLDER_ID ?? '',
   gdriveMaxFileSizeMb: parseNumber(process.env.GDRIVE_MAX_FILE_SIZE_MB, 10),
   gdriveMaxFiles: parseNumber(process.env.GDRIVE_MAX_FILES, 10),
   gdriveOauthClientId: process.env.GDRIVE_OAUTH_CLIENT_ID ?? '',

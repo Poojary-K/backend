@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { upgradeToAdmin } from '../services/memberService.js';
+import { startDbBackup } from '../services/dbBackupService.js';
 import type { z } from 'zod';
 import { upgradeToAdminSchema } from '../schemas/adminSchemas.js';
 
@@ -25,7 +26,24 @@ export const upgradeToAdminHandler = async (req: Request, res: Response, next: N
   }
 };
 
+/**
+ * Starts an async database backup to Google Drive. Returns immediately.
+ */
+export const startDbBackupHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new Error('User not authenticated');
+    }
 
+    await startDbBackup(req.user.memberId);
 
+    res.status(202).json({
+      success: true,
+      data: { message: 'Database backup started' },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 

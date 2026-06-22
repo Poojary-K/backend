@@ -1,6 +1,6 @@
 # Database backup and restore
 
-Scripts live in `scripts/`. They read **`backend/.env`** (or export the same variables in your shell).
+Scripts live in `scripts/`. They read **`backend/.env`** and treat current shell exports as higher-priority defaults.
 
 - `db-backup.sh` — `pg_dump` to **plain SQL (gzip)** by default, or **custom** (`.dump`) for `pg_restore`.
 - `db-restore.sh` — **`pg_restore`** for `.dump`, **`psql`** for `.sql` / `.sql.gz`.
