@@ -15,6 +15,27 @@ export interface CreateContributionInput {
   readonly contributedDate: Date;
 }
 
+export interface ContributionWithMemberRecord extends ContributionRecord {
+  readonly member_name: string;
+}
+
+export interface ContributionStatsRecord {
+  readonly totalAmount: string;
+  readonly count: number;
+  readonly topContributors: Array<{
+    readonly memberId: number;
+    readonly memberName: string;
+    readonly totalAmount: string;
+  }>;
+}
+
+export interface ListContributionsFilter {
+  readonly memberId?: number | undefined;
+  readonly fromDate?: Date | undefined;
+  readonly toDate?: Date | undefined;
+  readonly limit?: number | undefined;
+}
+
 /**
  * Saves a contribution for a member and returns the stored record.
  */
@@ -109,6 +130,114 @@ export const updateContribution = async (id: number, input: UpdateContributionIn
     throw new Error('Contribution not found');
   }
   return row;
+};
+
+/**
+ * Lists a single member's contributions, newest first.
+ */
+export const listContributionsByMemberId = async (
+  memberId: number,
+  limit = 20,
+): Promise<ContributionRecord[]> => {
+  const text = `
+    SELECT contributionid, memberid, amount, contributeddate, createdat
+    FROM contributions
+    WHERE memberid = $1
+    ORDER BY contributeddate DESC, createdat DESC
+    LIMIT $2;
+  `;
+  const result = await query<ContributionRecord>(text, [memberId, limit]);
+  return result.rows;
+};
+
+/**
+ * Returns the total amount a member has contributed (as a numeric string).
+ */
+export const sumContributionsByMemberId = async (memberId: number): Promise<string> => {
+  const text = `SELECT COALESCE(SUM(amount), 0)::text AS total FROM contributions WHERE memberid = $1;`;
+  const result = await query<{ total: string }>(text, [memberId]);
+  return result.rows[0]?.total ?? '0';
+};
+
+/**
+ * Lists contributions joined with member names, with optional filters.
+ */
+export const listContributionsWithMemberNames = async (
+  options: ListContributionsFilter = {},
+): Promise<ContributionWithMemberRecord[]> => {
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+  let paramIndex = 1;
+
+  if (options.memberId !== undefined) {
+    conditions.push(`c.memberid = $${paramIndex++}`);
+    values.push(options.memberId);
+  }
+  if (options.fromDate !== undefined) {
+    conditions.push(`c.contributeddate >= $${paramIndex++}`);
+    values.push(options.fromDate);
+  }
+  if (options.toDate !== undefined) {
+    conditions.push(`c.contributeddate <= $${paramIndex++}`);
+    values.push(options.toDate);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  values.push(options.limit ?? 20);
+  const text = `
+    SELECT c.contributionid, c.memberid, m.name AS member_name, c.amount, c.contributeddate, c.createdat
+    FROM contributions c
+    JOIN members m ON m.memberid = c.memberid
+    ${whereClause}
+    ORDER BY c.contributeddate DESC, c.createdat DESC
+    LIMIT $${paramIndex};
+  `;
+  const result = await query<ContributionWithMemberRecord>(text, values);
+  return result.rows;
+};
+
+/**
+ * Aggregates contribution totals, count, and top contributors within an optional date range.
+ */
+export const getContributionStats = async (
+  options: { fromDate?: Date | undefined; toDate?: Date | undefined } = {},
+): Promise<ContributionStatsRecord> => {
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+  let paramIndex = 1;
+
+  if (options.fromDate !== undefined) {
+    conditions.push(`contributeddate >= $${paramIndex++}`);
+    values.push(options.fromDate);
+  }
+  if (options.toDate !== undefined) {
+    conditions.push(`contributeddate <= $${paramIndex++}`);
+    values.push(options.toDate);
+  }
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const totalsText = `
+    SELECT COALESCE(SUM(amount), 0)::text AS "totalAmount", COUNT(*)::int AS count
+    FROM contributions
+    ${whereClause};
+  `;
+  const topText = `
+    SELECT c.memberid AS "memberId", m.name AS "memberName", SUM(c.amount)::text AS "totalAmount"
+    FROM contributions c
+    JOIN members m ON m.memberid = c.memberid
+    ${whereClause ? whereClause.replace(/contributeddate/g, 'c.contributeddate') : ''}
+    GROUP BY c.memberid, m.name
+    ORDER BY SUM(c.amount) DESC
+    LIMIT 10;
+  `;
+  const totals = await query<{ totalAmount: string; count: number }>(totalsText, values);
+  const top = await query<{ memberId: number; memberName: string; totalAmount: string }>(topText, values);
+  const totalsRow = totals.rows[0] ?? { totalAmount: '0', count: 0 };
+  return {
+    totalAmount: totalsRow.totalAmount,
+    count: totalsRow.count,
+    topContributors: top.rows,
+  };
 };
 
 /**

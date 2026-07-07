@@ -16,6 +16,11 @@ export interface CreateCauseInput {
   readonly createdat?: Date | undefined;
 }
 
+export interface CauseStatsRecord {
+  readonly totalAmount: string;
+  readonly count: number;
+}
+
 /**
  * Persists a cause and returns the stored database row.
  */
@@ -121,6 +126,82 @@ export const updateCause = async (id: number, input: UpdateCauseInput): Promise<
     throw new Error('Cause not found');
   }
   return row;
+};
+
+/**
+ * Searches causes by keyword in title or description.
+ */
+export const searchCauses = async (queryText: string, limit = 20): Promise<CauseRecord[]> => {
+  const text = `
+    SELECT causeid, title, description, amount, createdat
+    FROM causes
+    WHERE title ILIKE $1 OR description ILIKE $1
+    ORDER BY createdat DESC
+    LIMIT $2;
+  `;
+  const result = await query<CauseRecord>(text, [`%${queryText}%`, limit]);
+  return result.rows;
+};
+
+/**
+ * Lists causes created within an optional date range, newest first.
+ */
+export const listCausesInDateRange = async (
+  fromDate?: Date,
+  toDate?: Date,
+  limit = 20,
+): Promise<CauseRecord[]> => {
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+  let paramIndex = 1;
+
+  if (fromDate !== undefined) {
+    conditions.push(`createdat >= $${paramIndex++}`);
+    values.push(fromDate);
+  }
+  if (toDate !== undefined) {
+    conditions.push(`createdat <= $${paramIndex++}`);
+    values.push(toDate);
+  }
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  values.push(limit);
+  const text = `
+    SELECT causeid, title, description, amount, createdat
+    FROM causes
+    ${whereClause}
+    ORDER BY createdat DESC
+    LIMIT $${paramIndex};
+  `;
+  const result = await query<CauseRecord>(text, values);
+  return result.rows;
+};
+
+/**
+ * Aggregates cause totals and count within an optional date range.
+ */
+export const getCauseStats = async (
+  options: { fromDate?: Date | undefined; toDate?: Date | undefined } = {},
+): Promise<CauseStatsRecord> => {
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+  let paramIndex = 1;
+
+  if (options.fromDate !== undefined) {
+    conditions.push(`createdat >= $${paramIndex++}`);
+    values.push(options.fromDate);
+  }
+  if (options.toDate !== undefined) {
+    conditions.push(`createdat <= $${paramIndex++}`);
+    values.push(options.toDate);
+  }
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const text = `
+    SELECT COALESCE(SUM(amount), 0)::text AS "totalAmount", COUNT(*)::int AS count
+    FROM causes
+    ${whereClause};
+  `;
+  const result = await query<CauseStatsRecord>(text, values);
+  return result.rows[0] ?? { totalAmount: '0', count: 0 };
 };
 
 /**

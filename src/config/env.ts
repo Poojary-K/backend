@@ -30,6 +30,14 @@ export interface AppConfig {
   readonly gdriveOauthClientSecret: string;
   readonly gdriveOauthRedirectUri: string;
   readonly gdriveOauthRefreshToken: string;
+  readonly llmProvider: string;
+  readonly openaiApiKey: string;
+  readonly openaiModel: string;
+  readonly chatMaxToolIterations: number;
+  readonly chatMaxHistoryMessages: number;
+  readonly chatMaxMessageLength: number;
+  readonly chatRateLimitWindowMs: number;
+  readonly chatRateLimitMaxRequests: number;
 }
 
 const parseNumber = (value: string | undefined, fallback: number): number => {
@@ -84,6 +92,14 @@ const config: AppConfig = {
   gdriveOauthClientSecret: process.env.GDRIVE_OAUTH_CLIENT_SECRET ?? '',
   gdriveOauthRedirectUri: process.env.GDRIVE_OAUTH_REDIRECT_URI ?? '',
   gdriveOauthRefreshToken: process.env.GDRIVE_OAUTH_REFRESH_TOKEN ?? '',
+  llmProvider: process.env.LLM_PROVIDER ?? 'openai',
+  openaiApiKey: process.env.OPENAI_API_KEY ?? '',
+  openaiModel: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
+  chatMaxToolIterations: parseNumber(process.env.CHAT_MAX_TOOL_ITERATIONS, 5),
+  chatMaxHistoryMessages: parseNumber(process.env.CHAT_MAX_HISTORY_MESSAGES, 20),
+  chatMaxMessageLength: parseNumber(process.env.CHAT_MAX_MESSAGE_LENGTH, 4000),
+  chatRateLimitWindowMs: parseNumber(process.env.CHAT_RATE_LIMIT_WINDOW_MS, 60000),
+  chatRateLimitMaxRequests: parseNumber(process.env.CHAT_RATE_LIMIT_MAX_REQUESTS, 10),
 };
 
 /**

@@ -97,6 +97,24 @@ export const listMembers = async (): Promise<MemberRecord[]> => {
 };
 
 /**
+ * Searches members by name or email. Callers must sanitize before exposing results.
+ */
+export const searchMembers = async (queryText: string, limit = 20): Promise<MemberRecord[]> => {
+  const text = `
+    SELECT memberid, name, email, phone, password, joinedon, is_admin,
+      email_updates_enabled,
+      email_verified, email_verified_at, email_verification_token_hash,
+      email_verification_expires_at, email_verification_sent_at
+    FROM members
+    WHERE name ILIKE $1 OR email ILIKE $1
+    ORDER BY joinedon DESC
+    LIMIT $2;
+  `;
+  const result = await query<MemberRecord>(text, [`%${queryText}%`, limit]);
+  return result.rows;
+};
+
+/**
  * Updates a member's admin status.
  */
 export const updateMemberAdminStatus = async (id: number, isAdmin: boolean): Promise<MemberRecord> => {
