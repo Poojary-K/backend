@@ -14,7 +14,7 @@ import {
   type ChatSessionRecord,
   type ChatMessageRecord,
 } from '../repositories/chatRepository.js';
-import { runChatAgent, generateSessionTitle } from './llmClient.js';
+import { runChatAgent, streamChatAgent, generateSessionTitle } from './llmClient.js';
 import type { ChatToolContext } from './chatToolsService.js';
 
 const SYSTEM_PROMPT = `You are the Fund Administrator AI for "For The Society" — a transparent group fund management portal. You have complete, authoritative knowledge of this system: its financial records, member activity, contribution history, and all causes disbursed.
@@ -54,7 +54,22 @@ export interface ChatMessageDto {
   readonly role: 'user' | 'assistant';
   readonly content: string;
   readonly createdAt: Date;
+  readonly toolsUsed?: string[];
 }
+
+/**
+ * Extracts the distinct tool names invoked for an assistant message from its
+ * persisted tool_calls payload, so the UI can label them after streaming ends.
+ */
+const extractToolsUsed = (toolCalls: unknown): string[] | undefined => {
+  if (!Array.isArray(toolCalls)) {
+    return undefined;
+  }
+  const names = toolCalls
+    .map((call) => (call && typeof call === 'object' ? (call as { name?: unknown }).name : undefined))
+    .filter((name): name is string => typeof name === 'string' && name.length > 0);
+  return names.length > 0 ? [...new Set(names)] : undefined;
+};
 
 /**
  * Maps a session record to the client-facing shape.
@@ -69,12 +84,16 @@ export const toSessionDto = (session: ChatSessionRecord): ChatSessionDto => ({
 /**
  * Maps a stored message to the client-facing shape (tool rows/payloads are hidden).
  */
-export const toMessageDto = (message: ChatMessageRecord): ChatMessageDto => ({
-  messageId: message.message_id,
-  role: message.role === 'assistant' ? 'assistant' : 'user',
-  content: message.content,
-  createdAt: message.created_at,
-});
+export const toMessageDto = (message: ChatMessageRecord): ChatMessageDto => {
+  const toolsUsed = message.role === 'assistant' ? extractToolsUsed(message.tool_calls) : undefined;
+  return {
+    messageId: message.message_id,
+    role: message.role === 'assistant' ? 'assistant' : 'user',
+    content: message.content,
+    createdAt: message.created_at,
+    ...(toolsUsed ? { toolsUsed } : {}),
+  };
+};
 
 // Only user/assistant messages with visible text are exposed to the frontend.
 const isVisibleMessage = (message: ChatMessageRecord): boolean =>
@@ -244,6 +263,89 @@ export const sendMessage = async (input: SendMessageInput): Promise<SendMessageR
     toolsUsed: [...new Set(toolsUsed)],
   };
 };
+
+export interface StreamMessageInput {
+  readonly sessionId: number;
+  readonly memberId: number;
+  readonly isAdmin: boolean;
+  readonly content: string;
+}
+
+const sseChunk = (event: string, data: unknown): string =>
+  `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+
+/**
+ * Streams the agent response as SSE-formatted strings.
+ * Yields tool_start and token events for live UI updates, then persists
+ * all messages and emits a final done event with the saved DTOs.
+ */
+export async function* streamMessage(input: StreamMessageInput): AsyncGenerator<string> {
+  const session = await requireActiveSession(input.sessionId, input.memberId);
+  const userRecord = await createMessage({ sessionId: input.sessionId, role: 'user', content: input.content });
+
+  const { chatMaxHistoryMessages } = getConfig();
+  const history = await listRecentMessagesBySession(input.sessionId, chatMaxHistoryMessages);
+  const inputMessages = history
+    .filter((r) => r.role === 'user' || (r.role === 'assistant' && r.content.trim().length > 0))
+    .map(toLangChainMessage);
+
+  const ctx: ChatToolContext = { memberId: input.memberId, isAdmin: input.isAdmin };
+  const toolsUsed: string[] = [];
+  let finalAssistant: ChatMessageDto | null = null;
+
+  try {
+    for await (const event of streamChatAgent(ctx, SYSTEM_PROMPT, inputMessages)) {
+      if (event.type === 'tool_start' && event.toolName) {
+        toolsUsed.push(event.toolName);
+        yield sseChunk('tool_start', { toolName: event.toolName });
+      } else if (event.type === 'token' && event.text) {
+        yield sseChunk('token', { text: event.text });
+      } else if (event.type === 'done') {
+        // Persist captured tool results, then the accumulated assistant answer.
+        for (const record of event.toolRecords ?? []) {
+          await createMessage({
+            sessionId: input.sessionId,
+            role: 'tool',
+            content: record.content,
+            toolName: record.name,
+            toolCallId: record.toolCallId,
+          });
+        }
+        const content = event.assistantText ?? '';
+        const toolCalls = event.toolCalls ?? [];
+        const saved = await createMessage({
+          sessionId: input.sessionId,
+          role: 'assistant',
+          content,
+          toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        });
+        if (content.trim().length > 0) {
+          finalAssistant = toMessageDto(saved);
+        }
+      }
+    }
+  } catch {
+    // Error already logged in streamChatAgent
+  }
+
+  if (!finalAssistant) {
+    const saved = await createMessage({ sessionId: input.sessionId, role: 'assistant', content: FALLBACK_REPLY });
+    finalAssistant = toMessageDto(saved);
+  }
+
+  await touchSession(input.sessionId);
+  if (session.title === 'New chat') {
+    const llmTitle = await generateSessionTitle(input.content);
+    const title = llmTitle ?? input.content.slice(0, AUTO_TITLE_MAX_CHARS);
+    await updateSessionTitle(input.sessionId, title);
+  }
+
+  yield sseChunk('done', {
+    userMessage: toMessageDto(userRecord),
+    assistantMessage: finalAssistant,
+    toolsUsed: [...new Set(toolsUsed)],
+  });
+}
 
 // Re-exported so orchestration can reuse the ownership guard.
 export { requireActiveSession };

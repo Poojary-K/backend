@@ -13,6 +13,8 @@ type ToolAccess = 'member' | 'admin';
 
 interface ChatToolDefinition {
   readonly name: string;
+  // Short human-friendly progress label shown in the UI while the tool runs.
+  readonly label: string;
   readonly description: string;
   readonly schema: z.ZodObject<z.ZodRawShape>;
   readonly access: ToolAccess;
@@ -46,6 +48,7 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   // ---- Tier A: all authenticated members ----
   {
     name: 'get_fund_status',
+    label: 'Checking fund balance',
     description: 'Returns total contributions, total disbursements (causes), and available fund balance.',
     schema: z.object({}),
     access: 'member',
@@ -53,6 +56,7 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   },
   {
     name: 'list_causes',
+    label: 'Listing causes',
     description: 'Lists fundraising causes / disbursements, newest first. Optional date range filter.',
     schema: z.object({ ...limitShape, ...dateRangeShape }),
     access: 'member',
@@ -65,6 +69,7 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   },
   {
     name: 'get_cause',
+    label: 'Looking up cause',
     description: 'Get a single fundraising cause by its ID.',
     schema: z.object({ causeId: z.number().int().describe('Cause ID') }),
     access: 'member',
@@ -72,6 +77,7 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   },
   {
     name: 'search_causes',
+    label: 'Searching causes',
     description: 'Search causes by keyword in title or description.',
     schema: z.object({ query: z.string().min(1), ...limitShape }),
     access: 'member',
@@ -79,6 +85,7 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   },
   {
     name: 'list_cause_images',
+    label: 'Loading cause images',
     description: 'List proof-of-payment image URLs for a cause.',
     schema: z.object({ causeId: z.number().int() }),
     access: 'member',
@@ -87,6 +94,7 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   // ---- Tier B: member-scoped ----
   {
     name: 'get_my_profile',
+    label: 'Loading your profile',
     description: "Returns the current user's profile (name, join date, admin status). No password or verification data.",
     schema: z.object({}),
     access: 'member',
@@ -94,6 +102,7 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   },
   {
     name: 'list_my_contributions',
+    label: 'Loading your contributions',
     description: 'Lists contributions made by the current user, optionally filtered by date range.',
     schema: z.object({ ...limitShape, ...dateRangeShape }),
     access: 'member',
@@ -106,6 +115,7 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   },
   {
     name: 'get_my_contribution_total',
+    label: 'Calculating your total',
     description: 'Returns the total amount the current user has contributed.',
     schema: z.object({}),
     access: 'member',
@@ -113,6 +123,7 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   },
   {
     name: 'get_my_contribution',
+    label: 'Looking up contribution',
     description: 'Get a single contribution by ID if it belongs to the current user.',
     schema: z.object({ contributionId: z.number().int() }),
     access: 'member',
@@ -121,6 +132,7 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   // ---- Tier C: admin only ----
   {
     name: 'list_members',
+    label: 'Loading member list',
     description: 'List all registered members (sanitized, no passwords).',
     schema: z.object({ ...limitShape }),
     access: 'admin',
@@ -128,6 +140,7 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   },
   {
     name: 'get_member',
+    label: 'Looking up member',
     description: 'Get a member by ID.',
     schema: z.object({ memberId: z.number().int() }),
     access: 'admin',
@@ -135,6 +148,7 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   },
   {
     name: 'search_members',
+    label: 'Searching members',
     description: 'Search members by name or email.',
     schema: z.object({ query: z.string().min(1), ...limitShape }),
     access: 'admin',
@@ -142,6 +156,7 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   },
   {
     name: 'list_contributions',
+    label: 'Loading all contributions',
     description: 'List all contributions across members with member names. Optional member and date filters.',
     schema: z.object({
       ...limitShape,
@@ -159,6 +174,7 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   },
   {
     name: 'get_contribution',
+    label: 'Looking up contribution',
     description: 'Get any contribution by ID with the member name (admin).',
     schema: z.object({ contributionId: z.number().int() }),
     access: 'admin',
@@ -166,6 +182,7 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   },
   {
     name: 'list_contribution_images',
+    label: 'Loading contribution images',
     description: 'List proof images for any contribution (admin).',
     schema: z.object({ contributionId: z.number().int() }),
     access: 'admin',
@@ -173,6 +190,7 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   },
   {
     name: 'get_contribution_summary',
+    label: 'Summarising contributions',
     description: 'Aggregate contribution statistics: total amount, count, and top contributors. Optional date range.',
     schema: z.object({ ...dateRangeShape }),
     access: 'admin',
@@ -181,6 +199,7 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   },
   {
     name: 'get_cause_summary',
+    label: 'Summarising causes',
     description: 'Aggregate cause/disbursement statistics: total amount spent and count. Optional date range.',
     schema: z.object({ ...dateRangeShape }),
     access: 'admin',
@@ -237,3 +256,18 @@ export const buildChatTools = (ctx: ChatToolContext): DynamicStructuredTool[] =>
  */
 export const getToolNames = (ctx: ChatToolContext): string[] =>
   TOOL_DEFINITIONS.filter((definition) => definition.access === 'member' || ctx.isAdmin).map((d) => d.name);
+
+export interface ChatToolMeta {
+  readonly name: string;
+  readonly label: string;
+}
+
+/**
+ * Returns the name + progress-label catalog available to a given context, so the
+ * UI can render friendly tool labels without hardcoding its own copy.
+ */
+export const getToolCatalog = (ctx: ChatToolContext): ChatToolMeta[] =>
+  TOOL_DEFINITIONS.filter((definition) => definition.access === 'member' || ctx.isAdmin).map((d) => ({
+    name: d.name,
+    label: d.label,
+  }));

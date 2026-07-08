@@ -7,8 +7,10 @@ import {
   getChatSession,
   deleteChatSession,
   sendMessage,
+  streamMessage,
 } from '../services/chatService.js';
 import { checkAgentHealth } from '../services/llmClient.js';
+import { getToolCatalog } from '../services/chatToolsService.js';
 import type { createSessionSchema, sendMessageSchema } from '../schemas/chatSchemas.js';
 
 const MAX_SESSION_LIST_LIMIT = 100;
@@ -38,6 +40,20 @@ export const chatHealthHandler = async (_req: Request, res: Response, next: Next
   try {
     const { available } = await checkAgentHealth();
     res.status(200).json({ success: true, data: { available } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Returns the tool catalog (name + progress label) available to the caller,
+ * so the UI can render friendly labels without hardcoding them.
+ */
+export const chatToolsHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { memberId, isAdmin } = requireUser(req);
+    const tools = getToolCatalog({ memberId, isAdmin });
+    res.status(200).json({ success: true, data: { tools } });
   } catch (error) {
     next(error);
   }
@@ -114,5 +130,35 @@ export const sendMessageHandler = async (req: Request, res: Response, next: Next
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
+  }
+};
+
+/**
+ * Streams the assistant reply as Server-Sent Events.
+ * Emits tool_start and token events during generation, then a done event with persisted DTOs.
+ */
+export const streamMessageHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { memberId, isAdmin } = requireUser(req);
+    const sessionId = parseSessionId(req.params.sessionId);
+    const { content } = req.body as z.infer<typeof sendMessageSchema>;
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    for await (const chunk of streamMessage({ sessionId, memberId, isAdmin, content })) {
+      res.write(chunk);
+    }
+
+    res.end();
+  } catch (error) {
+    if (!res.headersSent) {
+      next(error);
+    } else {
+      res.write(`event: error\ndata: ${JSON.stringify({ message: 'Stream failed' })}\n\n`);
+      res.end();
+    }
   }
 };
