@@ -30,9 +30,17 @@ export interface AppConfig {
   readonly gdriveOauthClientSecret: string;
   readonly gdriveOauthRedirectUri: string;
   readonly gdriveOauthRefreshToken: string;
-  readonly llmProvider: string;
+  readonly llmProvider: 'openai' | 'nvidia';
   readonly openaiApiKey: string;
   readonly openaiModel: string;
+  readonly nvidiaApiKey: string;
+  readonly nvidiaModel: string;
+  readonly nvidiaBaseUrl: string;
+  readonly nvidiaTemperature: number;
+  readonly nvidiaTopP: number;
+  readonly nvidiaMaxTokens: number;
+  readonly nvidiaReasoningBudget: number;
+  readonly nvidiaEnableThinking: boolean;
   readonly chatMaxToolIterations: number;
   readonly chatMaxHistoryMessages: number;
   readonly chatMaxMessageLength: number;
@@ -92,9 +100,17 @@ const config: AppConfig = {
   gdriveOauthClientSecret: process.env.GDRIVE_OAUTH_CLIENT_SECRET ?? '',
   gdriveOauthRedirectUri: process.env.GDRIVE_OAUTH_REDIRECT_URI ?? '',
   gdriveOauthRefreshToken: process.env.GDRIVE_OAUTH_REFRESH_TOKEN ?? '',
-  llmProvider: process.env.LLM_PROVIDER ?? 'openai',
+  llmProvider: process.env.LLM_PROVIDER === 'nvidia' ? 'nvidia' : 'openai',
   openaiApiKey: process.env.OPENAI_API_KEY ?? '',
   openaiModel: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
+  nvidiaApiKey: process.env.NVIDIA_API_KEY ?? '',
+  nvidiaModel: process.env.NVIDIA_MODEL ?? 'nvidia/nemotron-3-ultra-550b-a55b',
+  nvidiaBaseUrl: process.env.NVIDIA_BASE_URL ?? 'https://integrate.api.nvidia.com/v1',
+  nvidiaTemperature: parseNumber(process.env.NVIDIA_TEMPERATURE, 1),
+  nvidiaTopP: parseNumber(process.env.NVIDIA_TOP_P, 0.95),
+  nvidiaMaxTokens: parseNumber(process.env.NVIDIA_MAX_TOKENS, 16384),
+  nvidiaReasoningBudget: parseNumber(process.env.NVIDIA_REASONING_BUDGET, 16384),
+  nvidiaEnableThinking: parseBoolean(process.env.NVIDIA_ENABLE_THINKING, true),
   chatMaxToolIterations: parseNumber(process.env.CHAT_MAX_TOOL_ITERATIONS, 5),
   chatMaxHistoryMessages: parseNumber(process.env.CHAT_MAX_HISTORY_MESSAGES, 20),
   chatMaxMessageLength: parseNumber(process.env.CHAT_MAX_MESSAGE_LENGTH, 4000),

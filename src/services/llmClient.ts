@@ -31,9 +31,28 @@ export interface AgentStreamEvent {
 const HEALTH_CACHE_TTL_MS = 30_000;
 let healthCache: { available: boolean; expiresAt: number } | null = null;
 
+interface ModelOverrides {
+  readonly temperature?: number;
+  readonly enableThinking?: boolean;
+}
+
+const getActiveLlmCredentials = (): { apiKey: string; healthUrl: string } => {
+  const config = getConfig();
+  if (config.llmProvider === 'nvidia') {
+    return {
+      apiKey: config.nvidiaApiKey,
+      healthUrl: `${config.nvidiaBaseUrl.replace(/\/$/, '')}/models`,
+    };
+  }
+  return {
+    apiKey: config.openaiApiKey,
+    healthUrl: 'https://api.openai.com/v1/models',
+  };
+};
+
 export const checkAgentHealth = async (): Promise<{ available: boolean }> => {
-  const { openaiApiKey } = getConfig();
-  if (!openaiApiKey) {
+  const { apiKey, healthUrl } = getActiveLlmCredentials();
+  if (!apiKey) {
     return { available: false };
   }
   const now = Date.now();
@@ -41,8 +60,8 @@ export const checkAgentHealth = async (): Promise<{ available: boolean }> => {
     return { available: healthCache.available };
   }
   try {
-    const res = await fetch('https://api.openai.com/v1/models', {
-      headers: { Authorization: `Bearer ${openaiApiKey}` },
+    const res = await fetch(healthUrl, {
+      headers: { Authorization: `Bearer ${apiKey}` },
       signal: AbortSignal.timeout(5000),
     });
     // 429 = rate-limited but the key is valid and the service is reachable
@@ -60,12 +79,39 @@ export interface RunAgentResult {
 }
 
 // Lazily constructs the chat model so config/env is read at call time, not import time.
-const createModel = (): ChatOpenAI => {
-  const { openaiApiKey, openaiModel } = getConfig();
-  if (!openaiApiKey) {
+const createModel = (overrides: ModelOverrides = {}): ChatOpenAI => {
+  const config = getConfig();
+  if (config.llmProvider === 'nvidia') {
+    if (!config.nvidiaApiKey) {
+      throw new HttpError('LLM service unavailable', 502, 'NVIDIA_API_KEY is not configured');
+    }
+    const enableThinking = overrides.enableThinking ?? config.nvidiaEnableThinking;
+    return new ChatOpenAI({
+      apiKey: config.nvidiaApiKey,
+      model: config.nvidiaModel,
+      temperature: overrides.temperature ?? config.nvidiaTemperature,
+      topP: config.nvidiaTopP,
+      maxTokens: config.nvidiaMaxTokens,
+      configuration: { baseURL: config.nvidiaBaseUrl },
+      modelKwargs: enableThinking
+        ? {
+            reasoning_budget: config.nvidiaReasoningBudget,
+            chat_template_kwargs: { enable_thinking: true },
+          }
+        : {
+            chat_template_kwargs: { enable_thinking: false },
+          },
+    });
+  }
+
+  if (!config.openaiApiKey) {
     throw new HttpError('LLM service unavailable', 502, 'OPENAI_API_KEY is not configured');
   }
-  return new ChatOpenAI({ apiKey: openaiApiKey, model: openaiModel, temperature: 0 });
+  return new ChatOpenAI({
+    apiKey: config.openaiApiKey,
+    model: config.openaiModel,
+    temperature: overrides.temperature ?? 0,
+  });
 };
 
 const extractText = (content: unknown): string => {
@@ -84,7 +130,7 @@ const extractText = (content: unknown): string => {
  */
 export const generateSessionTitle = async (firstMessage: string): Promise<string | null> => {
   try {
-    const model = createModel();
+    const model = createModel({ temperature: 0, enableThinking: false });
     const response = await model.invoke([
       new HumanMessage(
         `Generate a concise chat title (3–6 words, no quotes, no trailing punctuation) that captures the topic of this message:\n\n${firstMessage.slice(0, 500)}`,
@@ -130,7 +176,9 @@ export async function* streamChatAgent(
       if (event.event === 'on_tool_start') {
         yield { type: 'tool_start', toolName: event.name };
       } else if (event.event === 'on_chat_model_stream') {
-        const content: unknown = (event.data as { chunk?: { content?: unknown } })?.chunk?.content;
+        const chunk = (event.data as { chunk?: { content?: unknown; additional_kwargs?: Record<string, unknown> } })?.chunk;
+        // Nemotron reasoning traces arrive separately; only stream the final answer tokens.
+        const content: unknown = chunk?.content;
         const text = extractText(content);
         if (text.length > 0) {
           assistantText += text;
