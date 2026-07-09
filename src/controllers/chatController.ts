@@ -8,6 +8,7 @@ import {
   deleteChatSession,
   sendMessage,
   streamMessage,
+  getChatSessionPending,
 } from '../services/chatService.js';
 import { checkAgentHealth } from '../services/llmClient.js';
 import { getToolCatalog } from '../services/chatToolsService.js';
@@ -38,8 +39,8 @@ const parseSessionId = (value: string | undefined): number => {
  */
 export const chatHealthHandler = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { available } = await checkAgentHealth();
-    res.status(200).json({ success: true, data: { available } });
+    const health = await checkAgentHealth();
+    res.status(200).json({ success: true, data: health });
   } catch (error) {
     next(error);
   }
@@ -119,6 +120,20 @@ export const deleteSessionHandler = async (req: Request, res: Response, next: Ne
 };
 
 /**
+ * Returns active and recently superseded pending tasks for a session.
+ */
+export const getSessionPendingHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { memberId, isAdmin } = requireUser(req);
+    const sessionId = parseSessionId(req.params.sessionId);
+    const data = await getChatSessionPending(sessionId, memberId, isAdmin);
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Sends a user message and returns the assistant reply.
  */
 export const sendMessageHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -157,7 +172,9 @@ export const streamMessageHandler = async (req: Request, res: Response, next: Ne
     if (!res.headersSent) {
       next(error);
     } else {
-      res.write(`event: error\ndata: ${JSON.stringify({ message: 'Stream failed' })}\n\n`);
+      const message =
+        error instanceof HttpError ? error.message : 'The AI assistant encountered an error. Please try again.';
+      res.write(`event: error\ndata: ${JSON.stringify({ message })}\n\n`);
       res.end();
     }
   }

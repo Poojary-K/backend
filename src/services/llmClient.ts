@@ -3,7 +3,7 @@ import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { HumanMessage, type BaseMessage } from '@langchain/core/messages';
 import { HttpError } from '../middlewares/errorHandler.js';
 import { getConfig } from '../config/env.js';
-import { buildChatTools, type ChatToolContext } from './chatToolsService.js';
+import { buildChatTools, type ChatToolContext, type ChatToolMode } from './chatToolsService.js';
 
 export interface AgentToolRecord {
   readonly name: string;
@@ -29,12 +29,146 @@ export interface AgentStreamEvent {
 }
 
 const HEALTH_CACHE_TTL_MS = 30_000;
-let healthCache: { available: boolean; expiresAt: number } | null = null;
+const HEALTH_BUSY_CACHE_TTL_MS = 90_000;
+
+export const LLM_BUSY_USER_MESSAGE =
+  'The AI service is currently busy (NVIDIA hosted models are queued). Please wait a moment and try again.';
+
+export const LLM_UNAVAILABLE_USER_MESSAGE =
+  'The AI assistant is temporarily unavailable. Please try again later.';
+
+export type LlmHealthStatus = 'available' | 'busy' | 'unavailable';
+
+export interface AgentHealthResult {
+  readonly available: boolean;
+  readonly status: LlmHealthStatus;
+  readonly message?: string;
+}
+
+let healthCache: { result: AgentHealthResult; expiresAt: number } | null = null;
+let llmBusyUntil: number | null = null;
 
 interface ModelOverrides {
   readonly temperature?: number;
   readonly enableThinking?: boolean;
 }
+
+type LlmErrorKind = 'busy' | 'degraded' | 'unavailable';
+
+interface ClassifiedLlmError {
+  readonly kind: LlmErrorKind;
+  readonly userMessage: string;
+  readonly statusCode: number;
+  readonly detail?: string;
+}
+
+const markLlmBusy = (durationMs = HEALTH_BUSY_CACHE_TTL_MS): void => {
+  llmBusyUntil = Date.now() + durationMs;
+  healthCache = {
+    result: { available: false, status: 'busy', message: LLM_BUSY_USER_MESSAGE },
+    expiresAt: Date.now() + durationMs,
+  };
+};
+
+/** Extracts a human-readable detail string from LangChain / OpenAI SDK errors. */
+const extractLlmErrorDetail = (error: unknown): string | undefined => {
+  if (!error || typeof error !== 'object') {
+    return undefined;
+  }
+  const err = error as Record<string, unknown>;
+  if (typeof err.message === 'string' && err.message !== '400 status code (no body)') {
+    return err.message;
+  }
+  const nested = err.error;
+  if (nested && typeof nested === 'object') {
+    const detail = (nested as { detail?: unknown; message?: unknown }).detail ?? (nested as { message?: unknown }).message;
+    if (typeof detail === 'string') {
+      return detail;
+    }
+  }
+  return undefined;
+};
+
+const extractLlmHttpStatus = (error: unknown): number | undefined => {
+  if (!error || typeof error !== 'object') {
+    return undefined;
+  }
+  const status = (error as { status?: unknown }).status;
+  return typeof status === 'number' ? status : undefined;
+};
+
+const isBusyLlmDetail = (detail: string | undefined, httpStatus?: number): boolean => {
+  if (httpStatus === 429 || httpStatus === 503) {
+    return true;
+  }
+  if (!detail) {
+    return false;
+  }
+  const lower = detail.toLowerCase();
+  return (
+    lower.includes('resourceexhausted') ||
+    lower.includes('request limit reached') ||
+    lower.includes('rate limit') ||
+    lower.includes('too many requests') ||
+    lower.includes('service unavailable') ||
+    lower.includes('overloaded') ||
+    lower.includes('capacity') ||
+    lower.includes('queued')
+  );
+};
+
+const classifyLlmError = (error: unknown): ClassifiedLlmError => {
+  const detail = extractLlmErrorDetail(error);
+  const httpStatus = extractLlmHttpStatus(error);
+
+  if (isBusyLlmDetail(detail, httpStatus)) {
+    return {
+      kind: 'busy',
+      userMessage: LLM_BUSY_USER_MESSAGE,
+      statusCode: 503,
+      ...(detail ? { detail } : {}),
+    };
+  }
+  if (detail?.includes('DEGRADED')) {
+    return {
+      kind: 'degraded',
+      userMessage:
+        'The configured AI model is temporarily unavailable on NVIDIA. Please try again later or contact an administrator.',
+      statusCode: 502,
+      detail,
+    };
+  }
+  return {
+    kind: 'unavailable',
+    userMessage: LLM_UNAVAILABLE_USER_MESSAGE,
+    statusCode: 502,
+    ...(detail ? { detail } : {}),
+  };
+};
+
+const handleLlmError = (error: unknown, context: string): never => {
+  if (error instanceof HttpError) {
+    throw error;
+  }
+  const classified = classifyLlmError(error);
+  console.error(`LLM ${context} failed`, classified.detail ?? error);
+  if (classified.kind === 'busy') {
+    markLlmBusy();
+  }
+  throw new HttpError(classified.userMessage, classified.statusCode, classified.detail);
+};
+
+/** Maps any LLM failure to a user-facing message (for stream fallbacks). */
+export const toUserFacingLlmError = (error: unknown): HttpError => {
+  if (error instanceof HttpError) {
+    return error;
+  }
+  const classified = classifyLlmError(error);
+  if (classified.kind === 'busy') {
+    markLlmBusy();
+  }
+  return new HttpError(classified.userMessage, classified.statusCode, classified.detail);
+};
 
 const getActiveLlmCredentials = (): { apiKey: string; healthUrl: string } => {
   const config = getConfig();
@@ -50,27 +184,54 @@ const getActiveLlmCredentials = (): { apiKey: string; healthUrl: string } => {
   };
 };
 
-export const checkAgentHealth = async (): Promise<{ available: boolean }> => {
+export const checkAgentHealth = async (): Promise<AgentHealthResult> => {
+  const config = getConfig();
   const { apiKey, healthUrl } = getActiveLlmCredentials();
   if (!apiKey) {
-    return { available: false };
+    return { available: false, status: 'unavailable', message: LLM_UNAVAILABLE_USER_MESSAGE };
   }
+
   const now = Date.now();
-  if (healthCache && now < healthCache.expiresAt) {
-    return { available: healthCache.available };
+  if (llmBusyUntil !== null && now < llmBusyUntil) {
+    return { available: false, status: 'busy', message: LLM_BUSY_USER_MESSAGE };
   }
+  if (healthCache && now < healthCache.expiresAt) {
+    return healthCache.result;
+  }
+
   try {
+    if (config.llmProvider === 'nvidia') {
+      // Lightweight reachability check — avoid completion probes on every poll (they consume quota).
+      const res = await fetch(healthUrl, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(5000),
+      });
+      const result: AgentHealthResult =
+        res.ok || res.status === 429
+          ? { available: true, status: 'available' }
+          : { available: false, status: 'unavailable', message: LLM_UNAVAILABLE_USER_MESSAGE };
+      healthCache = { result, expiresAt: now + HEALTH_CACHE_TTL_MS };
+      return result;
+    }
+
     const res = await fetch(healthUrl, {
       headers: { Authorization: `Bearer ${apiKey}` },
       signal: AbortSignal.timeout(5000),
     });
-    // 429 = rate-limited but the key is valid and the service is reachable
-    const available = res.ok || res.status === 429;
-    healthCache = { available, expiresAt: now + HEALTH_CACHE_TTL_MS };
-    return { available };
+    const result: AgentHealthResult =
+      res.ok || res.status === 429
+        ? { available: true, status: 'available' }
+        : { available: false, status: 'unavailable', message: LLM_UNAVAILABLE_USER_MESSAGE };
+    healthCache = { result, expiresAt: now + HEALTH_CACHE_TTL_MS };
+    return result;
   } catch {
-    healthCache = { available: false, expiresAt: now + HEALTH_CACHE_TTL_MS };
-    return { available: false };
+    const result: AgentHealthResult = {
+      available: false,
+      status: 'unavailable',
+      message: LLM_UNAVAILABLE_USER_MESSAGE,
+    };
+    healthCache = { result, expiresAt: now + HEALTH_CACHE_TTL_MS };
+    return result;
   }
 };
 
@@ -152,11 +313,12 @@ export async function* streamChatAgent(
   ctx: ChatToolContext,
   systemPrompt: string,
   messages: BaseMessage[],
+  toolMode: ChatToolMode = 'full',
 ): AsyncGenerator<AgentStreamEvent> {
   const { chatMaxToolIterations } = getConfig();
   const agent = createReactAgent({
     llm: createModel(),
-    tools: buildChatTools(ctx),
+    tools: buildChatTools(ctx, toolMode),
     prompt: systemPrompt,
   });
 
@@ -207,9 +369,7 @@ export async function* streamChatAgent(
       }
     }
   } catch (error) {
-    if (error instanceof HttpError) throw error;
-    console.error('LLM agent stream failed', error);
-    throw new HttpError('LLM service unavailable', 502);
+    handleLlmError(error, 'agent stream');
   }
 
   yield { type: 'done', assistantText, toolRecords, toolCalls };
@@ -223,12 +383,13 @@ export const runChatAgent = async (
   ctx: ChatToolContext,
   systemPrompt: string,
   messages: BaseMessage[],
+  toolMode: ChatToolMode = 'full',
 ): Promise<RunAgentResult> => {
   const { chatMaxToolIterations } = getConfig();
   try {
     const agent = createReactAgent({
       llm: createModel(),
-      tools: buildChatTools(ctx),
+      tools: buildChatTools(ctx, toolMode),
       prompt: systemPrompt,
     });
     // recursionLimit bounds LLM<->tool round trips (roughly two graph steps per iteration).
@@ -238,10 +399,6 @@ export const runChatAgent = async (
     );
     return { messages: result.messages as BaseMessage[] };
   } catch (error) {
-    if (error instanceof HttpError) {
-      throw error;
-    }
-    console.error('LLM agent invocation failed', error);
-    throw new HttpError('LLM service unavailable', 502);
+    return handleLlmError(error, 'agent invocation');
   }
 };

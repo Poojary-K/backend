@@ -6,6 +6,7 @@ import {
   listSessionsHandler,
   getSessionHandler,
   deleteSessionHandler,
+  getSessionPendingHandler,
   sendMessageHandler,
   streamMessageHandler,
 } from '../controllers/chatController.js';
@@ -24,6 +25,7 @@ router.get('/tools', chatToolsHandler);
 router.post('/sessions', validateRequest(createSessionSchema), createSessionHandler);
 router.get('/sessions', listSessionsHandler);
 router.get('/sessions/:sessionId', getSessionHandler);
+router.get('/sessions/:sessionId/pending', getSessionPendingHandler);
 router.delete('/sessions/:sessionId', deleteSessionHandler);
 // Stricter limit on the LLM-backed endpoints.
 router.post('/sessions/:sessionId/messages', chatRateLimiter, validateRequest(sendMessageSchema), sendMessageHandler);
