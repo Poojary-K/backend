@@ -232,3 +232,60 @@ export const getContributionSummary = async (options: DateRangeOptions = {}): Pr
  */
 export const getCauseSummary = async (options: DateRangeOptions = {}): Promise<CauseStatsRecord> =>
   getCauseStats(options);
+
+const IST_TIMEZONE = 'Asia/Kolkata';
+
+/**
+ * Returns the current date and time in Indian Standard Time (IST).
+ * Use when the user omits a year or you need today's date for contribution/cause entries.
+ */
+export const getCurrentDateIst = (): {
+  readonly timezone: string;
+  readonly date: string;
+  readonly year: number;
+  readonly month: number;
+  readonly day: number;
+  readonly dateTime: string;
+  readonly usageHint: string;
+} => {
+  const now = new Date();
+  const date = new Intl.DateTimeFormat('en-CA', {
+    timeZone: IST_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+
+  const parts = new Intl.DateTimeFormat('en-IN', {
+    timeZone: IST_TIMEZONE,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  }).formatToParts(now);
+
+  const year = Number(parts.find((p) => p.type === 'year')?.value ?? date.slice(0, 4));
+  const month = Number(parts.find((p) => p.type === 'month')?.value ?? 1);
+  const day = Number(parts.find((p) => p.type === 'day')?.value ?? 1);
+
+  const dateTime = new Intl.DateTimeFormat('en-IN', {
+    timeZone: IST_TIMEZONE,
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZoneName: 'shortOffset',
+  }).format(now);
+
+  return {
+    timezone: `${IST_TIMEZONE} (IST)`,
+    date,
+    year,
+    month,
+    day,
+    dateTime,
+    usageHint: 'When the user gives a date without a year, combine their month/day with this year unless context clearly indicates another year.',
+  };
+};

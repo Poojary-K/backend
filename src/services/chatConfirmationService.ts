@@ -77,7 +77,7 @@ export const buildConfirmationReply = (outcome: PendingActionOutcome): string =>
 
     switch (result.actionType) {
       case 'create_contribution':
-        return `Done. Contribution #${details.contributionId} recorded successfully.`;
+        return `Done. Contribution #${details.contributionId} recorded successfully. If you have more entries to add, ask me to queue the next one.`;
       case 'update_contribution':
         return `Done. Contribution #${details.contributionId} has been updated.`;
       case 'delete_contribution':

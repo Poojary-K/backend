@@ -59,6 +59,17 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
     execute: () => readService.getFundStatus(),
   },
   {
+    name: 'get_current_date_ist',
+    label: 'Checking today\'s date',
+    description:
+      'Returns the current date and time in Indian Standard Time (IST / Asia/Kolkata). ' +
+      'CALL THIS when the user gives a date without a year (e.g. "August 1", "july 10") before queueing contributions or causes — use the returned year to build YYYY-MM-DD.',
+    schema: z.object({}),
+    access: 'member',
+    category: 'read',
+    execute: async () => readService.getCurrentDateIst(),
+  },
+  {
     name: 'list_causes',
     label: 'Listing causes',
     description: 'Lists fundraising causes / disbursements, newest first. Optional date range filter.',
@@ -233,7 +244,7 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
     label: 'Drafting contribution',
     description:
       'USE THIS to queue a NEW member contribution (money received). Does NOT save to the database yet — creates a pending task the admin confirms in the UI. ' +
-      'Required workflow: (1) search_members or get_my_profile to obtain memberId, (2) call this tool with memberId, amount (>0), contributedDate (YYYY-MM-DD). ' +
+      'Required workflow: (1) search_members to obtain memberId, (2) get_current_date_ist if the user omitted the year, (3) call with memberId, amount (>0), contributedDate as YYYY-MM-DD. ' +
       'Returns JSON with pending.pendingId and pending.summary on success. Only tell the user a pending task exists if pendingId is present in the tool response.',
     schema: z.object({
       memberId: z.number().int().positive(),
@@ -495,6 +506,7 @@ const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\
 /** Plain-language replacements when the model leaks an internal tool name. */
 const TOOL_NAME_PHRASES: Record<string, string> = {
   get_fund_balance: 'fund balance',
+  get_current_date_ist: "today's date",
   list_causes: 'cause records',
   get_cause: 'cause details',
   search_causes: 'cause search',

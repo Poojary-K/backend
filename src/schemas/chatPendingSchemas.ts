@@ -1,9 +1,23 @@
 import { z } from 'zod';
 
+const MIN_FUND_DATE_YEAR = 2025;
+
 const parseDateString = (value: string, ctx: z.RefinementCtx, field: string): Date => {
-  const parsed = new Date(value.trim());
+  const trimmed = value.trim();
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
+    ? new Date(`${trimmed}T12:00:00.000Z`)
+    : new Date(trimmed);
   if (Number.isNaN(parsed.getTime())) {
     ctx.addIssue({ code: 'custom', message: `Invalid ${field}` });
+    return z.NEVER;
+  }
+  const year = parsed.getUTCFullYear();
+  const maxYear = new Date().getUTCFullYear() + 1;
+  if (year < MIN_FUND_DATE_YEAR || year > maxYear) {
+    ctx.addIssue({
+      code: 'custom',
+      message: `${field} year ${year} looks wrong. Use YYYY-MM-DD with the correct year (e.g. ${maxYear - 1}-08-01 for August 1). Allowed: ${MIN_FUND_DATE_YEAR}–${maxYear}.`,
+    });
     return z.NEVER;
   }
   return parsed;

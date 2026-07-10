@@ -200,6 +200,24 @@ export const updatePendingTask = async (
 };
 
 /**
+ * Lists recently executed pending tasks for a session (for status summaries).
+ */
+export const listRecentlyExecutedBySessionId = async (
+  sessionId: number,
+  limit = 5,
+): Promise<ChatPendingTaskRecord[]> => {
+  const text = `
+    SELECT ${PENDING_COLUMNS}
+    FROM chat_pending_tasks
+    WHERE session_id = $1 AND status = 'executed'
+    ORDER BY executed_at DESC NULLS LAST, updated_at DESC
+    LIMIT $2;
+  `;
+  const result: QueryResult<ChatPendingTaskRecord> = await query<ChatPendingTaskRecord>(text, [sessionId, limit]);
+  return result.rows;
+};
+
+/**
  * Lists recently superseded pending tasks for a session (for UI/audit).
  */
 export const listRecentlySupersededBySessionId = async (
