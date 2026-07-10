@@ -9,6 +9,8 @@ import {
   sendMessage,
   streamMessage,
   getChatSessionPending,
+  confirmChatSessionPending,
+  cancelChatSessionPending,
 } from '../services/chatService.js';
 import { checkAgentHealth } from '../services/llmClient.js';
 import { getToolCatalog } from '../services/chatToolsService.js';
@@ -127,6 +129,34 @@ export const getSessionPendingHandler = async (req: Request, res: Response, next
     const { memberId, isAdmin } = requireUser(req);
     const sessionId = parseSessionId(req.params.sessionId);
     const data = await getChatSessionPending(sessionId, memberId, isAdmin);
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Confirms and executes the active pending task for a session (UI action).
+ */
+export const confirmSessionPendingHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { memberId, isAdmin } = requireUser(req);
+    const sessionId = parseSessionId(req.params.sessionId);
+    const data = await confirmChatSessionPending(sessionId, memberId, isAdmin);
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Cancels the active pending task for a session (UI action).
+ */
+export const cancelSessionPendingHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { memberId, isAdmin } = requireUser(req);
+    const sessionId = parseSessionId(req.params.sessionId);
+    const data = await cancelChatSessionPending(sessionId, memberId, isAdmin);
     res.status(200).json({ success: true, data });
   } catch (error) {
     next(error);

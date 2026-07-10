@@ -6,131 +6,70 @@ import {
 import { executePendingTask, type ExecutePendingResult } from './chatPendingExecutor.js';
 import { cancelPendingTask, type PendingTaskDto } from './chatPendingService.js';
 
-const YES_PATTERNS = [
-  /^yes\.?$/,
-  /^yep\.?$/,
-  /^yeah\.?$/,
-  /^yea\.?$/,
-  /^sure\.?$/,
-  /^y\.?$/,
-  /^confirm\.?$/,
-  /^confirmed\.?$/,
-  /^go ahead\.?$/,
-  /^proceed\.?$/,
-  /^do it\.?$/,
-  /^approve\.?$/,
-  /^ok\.?$/,
-  /^okay\.?$/,
-  /^absolutely\.?$/,
-];
-
-const NO_PATTERNS = [
-  /^no\.?$/,
-  /^nope\.?$/,
-  /^nah\.?$/,
-  /^n\.?$/,
-  /^cancel\.?$/,
-  /^abort\.?$/,
-  /^stop\.?$/,
-  /^reject\.?$/,
-  /^nevermind\.?$/,
-  /^never mind\.?$/,
-];
-
-export type ConfirmationResolution =
+export type PendingActionOutcome =
   | { readonly action: 'execute'; readonly result: ExecutePendingResult; readonly pending: PendingTaskDto }
-  | { readonly action: 'cancel'; readonly pending: PendingTaskDto }
-  | { readonly action: 'none' };
-
-const normalizeMessage = (message: string): string =>
-  message
-    .trim()
-    .toLowerCase()
-    .replace(/[^\w\s]/g, '')
-    .replace(/\s+/g, ' ');
-
-const matchesPatterns = (normalized: string, patterns: RegExp[]): boolean =>
-  patterns.some((pattern) => pattern.test(normalized));
+  | { readonly action: 'cancel'; readonly pending: PendingTaskDto };
 
 /**
- * Returns whether a message is a bare yes/no with no other content.
+ * Executes the active pending task for a session (UI confirm button — not chat text).
  */
-export const isBareConfirmationMessage = (message: string): 'yes' | 'no' | null => {
-  const normalized = normalizeMessage(message);
-  if (matchesPatterns(normalized, YES_PATTERNS)) {
-    return 'yes';
-  }
-  if (matchesPatterns(normalized, NO_PATTERNS)) {
-    return 'no';
-  }
-  return null;
-};
-
-/**
- * Reply when the user sends yes/no but no pending task is active.
- */
-export const buildOrphanConfirmationReply = (kind: 'yes' | 'no'): string =>
-  kind === 'yes'
-    ? 'There is no pending action awaiting your confirmation. If you want to make a change, describe what you need and I will prepare it for review.'
-    : 'Nothing to cancel — there is no pending action in this chat.';
-
-/**
- * Deterministically resolves yes/no confirmation against the active pending task.
- * Returns 'none' when the message is not a clear confirmation or rejection.
- */
-export const resolveUserConfirmation = async (input: {
-  readonly message: string;
+export const confirmSessionPending = async (input: {
   readonly sessionId: number;
   readonly memberId: number;
   readonly isAdmin: boolean;
-}): Promise<ConfirmationResolution> => {
+}): Promise<PendingActionOutcome> => {
   if (!input.isAdmin) {
-    return { action: 'none' };
+    throw new HttpError('Admin access required', 403);
   }
 
   await expireStalePendingForSession(input.sessionId);
   const active = await findActivePendingBySessionId(input.sessionId);
   if (!active) {
-    return { action: 'none' };
+    throw new HttpError('No active pending task for this session', 404);
   }
 
-  const normalized = normalizeMessage(input.message);
-
-  if (matchesPatterns(normalized, YES_PATTERNS)) {
-    try {
-      const result = await executePendingTask(active.pending_id, input.memberId, input.isAdmin);
-      return {
-        action: 'execute',
-        result,
-        pending: {
-          pendingId: active.pending_id,
-          actionType: active.action_type,
-          payload: active.payload,
-          summary: active.summary,
-          status: 'executed',
-          expiresAt: active.expires_at,
-        },
-      };
-    } catch (error) {
-      const message = error instanceof HttpError ? error.message : 'Execution failed';
-      throw new HttpError(message, error instanceof HttpError ? error.statusCode : 500);
-    }
+  try {
+    const result = await executePendingTask(active.pending_id, input.memberId, input.isAdmin);
+    return {
+      action: 'execute',
+      result,
+      pending: {
+        pendingId: active.pending_id,
+        actionType: active.action_type,
+        payload: active.payload,
+        summary: active.summary,
+        status: 'executed',
+        expiresAt: active.expires_at,
+      },
+    };
+  } catch (error) {
+    const message = error instanceof HttpError ? error.message : 'Execution failed';
+    throw new HttpError(message, error instanceof HttpError ? error.statusCode : 500);
   }
-
-  if (matchesPatterns(normalized, NO_PATTERNS)) {
-    const cancelled = await cancelPendingTask(input.sessionId, input.memberId, input.isAdmin);
-    return { action: 'cancel', pending: cancelled };
-  }
-
-  return { action: 'none' };
 };
 
 /**
- * Builds a user-facing assistant message after a confirmation resolution.
+ * Cancels the active pending task for a session (UI cancel button — not chat text).
  */
-export const buildConfirmationReply = (resolution: ConfirmationResolution): string => {
-  if (resolution.action === 'execute') {
-    const { result } = resolution;
+export const cancelSessionPending = async (input: {
+  readonly sessionId: number;
+  readonly memberId: number;
+  readonly isAdmin: boolean;
+}): Promise<PendingActionOutcome> => {
+  if (!input.isAdmin) {
+    throw new HttpError('Admin access required', 403);
+  }
+
+  const cancelled = await cancelPendingTask(input.sessionId, input.memberId, input.isAdmin);
+  return { action: 'cancel', pending: cancelled };
+};
+
+/**
+ * Builds a user-facing assistant message after confirm/cancel via the UI.
+ */
+export const buildConfirmationReply = (outcome: PendingActionOutcome): string => {
+  if (outcome.action === 'execute') {
+    const { result } = outcome;
     const details = result.result && typeof result.result === 'object' ? (result.result as Record<string, unknown>) : {};
     if (!result.success) {
       return `Failed to apply: ${result.summary}. Please review and try again.`;
@@ -159,8 +98,5 @@ export const buildConfirmationReply = (resolution: ConfirmationResolution): stri
         return `Done. ${result.summary} has been applied successfully.`;
     }
   }
-  if (resolution.action === 'cancel') {
-    return `Cancelled. The pending action "${resolution.pending.summary}" was not applied.`;
-  }
-  return '';
+  return `Cancelled. The pending action "${outcome.pending.summary}" was not applied.`;
 };

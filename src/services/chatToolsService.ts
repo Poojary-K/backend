@@ -163,7 +163,8 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   {
     name: 'search_members',
     label: 'Searching members',
-    description: 'Search members by name or email.',
+    description:
+      'Search members by name or email substring. USE BEFORE propose_create_contribution to resolve memberId. Returns memberId, name, email for each match.',
     schema: z.object({ query: z.string().min(1), ...limitShape }),
     access: 'admin',
     category: 'read',
@@ -231,7 +232,9 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
     name: 'propose_create_contribution',
     label: 'Drafting contribution',
     description:
-      'Propose creating a new contribution. Requires memberId (from search_members), amount, and contributedDate (YYYY-MM-DD). Creates a pending task awaiting admin confirmation.',
+      'USE THIS to queue a NEW member contribution (money received). Does NOT save to the database yet — creates a pending task the admin confirms in the UI. ' +
+      'Required workflow: (1) search_members or get_my_profile to obtain memberId, (2) call this tool with memberId, amount (>0), contributedDate (YYYY-MM-DD). ' +
+      'Returns JSON with pending.pendingId and pending.summary on success. Only tell the user a pending task exists if pendingId is present in the tool response.',
     schema: z.object({
       memberId: z.number().int().positive(),
       amount: z.number().positive(),
@@ -245,7 +248,10 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   {
     name: 'propose_update_contribution',
     label: 'Drafting contribution update',
-    description: 'Propose updating an existing contribution. Creates a pending task awaiting confirmation.',
+    description:
+      'USE THIS to queue an EDIT to an existing contribution. Requires contributionId from get_contribution or list_contributions. ' +
+      'Optionally change memberId, amount, or contributedDate. Creates a UI-confirmed pending task — not an immediate save. ' +
+      'Verify pending.pendingId in the tool response before telling the user it was queued.',
     schema: z.object({
       contributionId: z.number().int().positive(),
       memberId: z.number().int().positive().optional(),
@@ -260,7 +266,9 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   {
     name: 'propose_delete_contribution',
     label: 'Drafting contribution deletion',
-    description: 'Propose deleting a contribution. Creates a pending task awaiting confirmation.',
+    description:
+      'USE THIS to queue DELETION of a contribution by contributionId. Requires the ID from get_contribution or list_contributions. ' +
+      'Creates a pending task for UI confirmation — does not delete immediately. Check tool response for pending.pendingId.',
     schema: z.object({ contributionId: z.number().int().positive() }),
     access: 'admin',
     category: 'propose',
@@ -271,7 +279,9 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
     name: 'propose_create_cause',
     label: 'Drafting cause',
     description:
-      'Propose creating a new cause/disbursement. Use check_disbursement_feasibility first if amount is specified. Creates a pending task awaiting confirmation.',
+      'USE THIS to queue a NEW cause/disbursement (money spent from the fund). Requires title; amount and description optional. ' +
+      'If amount is set, call check_disbursement_feasibility first. Creates a UI-confirmed pending task. ' +
+      'Only confirm success to the user if the tool returns pending.pendingId.',
     schema: z.object({
       title: z.string().min(1),
       description: z.string().optional(),
@@ -285,7 +295,9 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   {
     name: 'propose_update_cause',
     label: 'Drafting cause update',
-    description: 'Propose updating an existing cause. Creates a pending task awaiting confirmation.',
+    description:
+      'USE THIS to queue an EDIT to an existing cause. Requires causeId from get_cause or list_causes. ' +
+      'Creates a pending task for UI confirmation. Verify pending.pendingId in the response.',
     schema: z.object({
       causeId: z.number().int().positive(),
       title: z.string().min(1).optional(),
@@ -300,7 +312,8 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   {
     name: 'propose_delete_cause',
     label: 'Drafting cause deletion',
-    description: 'Propose deleting a cause. Creates a pending task awaiting confirmation.',
+    description:
+      'USE THIS to queue DELETION of a cause by causeId. Creates a pending task for UI confirmation — not an immediate delete.',
     schema: z.object({ causeId: z.number().int().positive() }),
     access: 'admin',
     category: 'propose',
@@ -309,7 +322,8 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   {
     name: 'propose_update_member',
     label: 'Drafting member update',
-    description: 'Propose updating a member profile (name, email, phone). Creates a pending task awaiting confirmation.',
+    description:
+      'USE THIS to queue a member profile change (name, email, or phone). Requires memberId from get_member or search_members. UI confirmation required.',
     schema: z.object({
       memberId: z.number().int().positive(),
       name: z.string().min(1).optional(),
@@ -323,7 +337,8 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   {
     name: 'propose_promote_member',
     label: 'Drafting admin promotion',
-    description: 'Propose promoting a member to admin. Creates a pending task awaiting confirmation.',
+    description:
+      'USE THIS to queue promoting a member to admin. Requires memberId. Creates a pending task — does not promote immediately.',
     schema: z.object({ memberId: z.number().int().positive() }),
     access: 'admin',
     category: 'propose',
@@ -332,7 +347,8 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   {
     name: 'propose_delete_member',
     label: 'Drafting member deletion',
-    description: 'Propose deleting a member. Creates a pending task awaiting confirmation.',
+    description:
+      'USE THIS to queue removing a member from the society. Requires memberId. Creates a pending task for UI confirmation.',
     schema: z.object({ memberId: z.number().int().positive() }),
     access: 'admin',
     category: 'propose',
@@ -341,7 +357,8 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   {
     name: 'get_pending_task',
     label: 'Checking pending action',
-    description: 'Returns the active pending task awaiting confirmation in this chat session.',
+    description:
+      'Returns the active pending task for this chat session, if any. Use when unsure whether a proposal is queued or to read the current summary before replying.',
     schema: z.object({}),
     access: 'admin',
     category: 'pending',
@@ -350,7 +367,9 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   {
     name: 'update_pending_task',
     label: 'Updating pending action',
-    description: 'Modify fields on the active pending task (e.g. change amount or member). Regenerates the summary.',
+    description:
+      'Edits the active pending task payload (e.g. change amount, member, title) and regenerates its summary. ' +
+      'Use when the admin asks to modify the queued action before clicking Confirm in the UI. Requires an active pending task.',
     schema: z.object({
       memberId: z.number().int().positive().optional(),
       amount: z.number().positive().optional(),
@@ -371,7 +390,8 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   {
     name: 'cancel_pending_task',
     label: 'Cancelling pending action',
-    description: 'Reject/cancel the active pending task without executing it.',
+    description:
+      'Discards the active pending task without executing it. Prefer telling the admin to use the Cancel button in the UI; use this tool if they ask to abort in natural language.',
     schema: z.object({}),
     access: 'admin',
     category: 'pending',
@@ -380,7 +400,9 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
   {
     name: 'check_disbursement_feasibility',
     label: 'Checking fund availability',
-    description: 'Checks whether a proposed cause amount can be disbursed from available funds.',
+    description:
+      'Checks whether the fund has enough available balance for a proposed cause/disbursement amount. ' +
+      'Call BEFORE propose_create_cause when an amount is specified. Returns feasible true/false and availableFunds.',
     schema: z.object({ amount: z.number().nonnegative() }),
     access: 'admin',
     category: 'read',
@@ -467,3 +489,63 @@ export const getToolCatalog = (ctx: ChatToolContext): ChatToolMeta[] =>
     name: d.name,
     label: d.label,
   }));
+
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Plain-language replacements when the model leaks an internal tool name. */
+const TOOL_NAME_PHRASES: Record<string, string> = {
+  get_fund_balance: 'fund balance',
+  list_causes: 'cause records',
+  get_cause: 'cause details',
+  search_causes: 'cause search',
+  list_cause_images: 'cause proof images',
+  get_my_profile: 'your profile',
+  list_my_contributions: 'your contributions',
+  get_my_contribution_total: 'your contribution total',
+  get_my_contribution: 'your contribution',
+  list_members: 'member records',
+  get_member: 'member details',
+  search_members: 'member search',
+  list_contributions: 'contribution records',
+  get_contribution: 'contribution details',
+  list_contribution_images: 'contribution proof images',
+  get_contribution_summary: 'contribution summary',
+  get_cause_summary: 'cause summary',
+  propose_create_contribution: 'contribution proposal',
+  propose_update_contribution: 'contribution update',
+  propose_delete_contribution: 'contribution deletion',
+  propose_create_cause: 'cause proposal',
+  propose_update_cause: 'cause update',
+  propose_delete_cause: 'cause deletion',
+  propose_update_member: 'member update',
+  propose_promote_member: 'admin promotion',
+  propose_delete_member: 'member removal',
+  get_pending_task: 'pending action',
+  update_pending_task: 'pending update',
+  cancel_pending_task: 'pending cancellation',
+  check_disbursement_feasibility: 'fund availability check',
+};
+
+/**
+ * Strips internal tool/function names from text shown to users.
+ */
+export const sanitizeAssistantReply = (text: string): string => {
+  if (!text.trim()) {
+    return text;
+  }
+
+  let out = text;
+  for (const definition of TOOL_DEFINITIONS) {
+    const phrase = TOOL_NAME_PHRASES[definition.name] ?? 'the records';
+    const namePattern = escapeRegExp(definition.name);
+    out = out.replace(new RegExp(`\`${namePattern}\``, 'gi'), phrase);
+    out = out.replace(new RegExp(`\\b${namePattern}\\b`, 'gi'), phrase);
+  }
+
+  // Collapse common leakage patterns after replacements.
+  out = out.replace(/\b(?:call|use|invoke|run)\s+(?:the\s+)?(?:records|member search|contribution records)\b/gi, 'look up the records');
+  out = out.replace(/\*{0,2}Pending Task ID\*{0,2}\s*:?\s*\d+/gi, '');
+  out = out.replace(/\bmemberId\s+\d+/gi, (match) => match.replace(/memberId\s+/i, 'member '));
+  out = out.replace(/\n{3,}/g, '\n\n');
+  return out.trim();
+};
