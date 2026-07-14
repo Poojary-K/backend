@@ -16,6 +16,7 @@ import {
   validatePendingPayload,
   type PendingActionType,
   createContributionPayloadSchema,
+  createContributionsBatchPayloadSchema,
   updateContributionPayloadSchema,
   deleteContributionPayloadSchema,
   createCausePayloadSchema,
@@ -85,6 +86,17 @@ const buildSummary = async (actionType: PendingActionType, payload: unknown): Pr
       const p = payload as ReturnType<typeof createContributionPayloadSchema.parse>;
       const member = await getMember(p.memberId);
       return `Create contribution: ${member.name}, ${formatCurrency(p.amount)}, ${formatDate(p.contributedDate)}`;
+    }
+    case 'create_contributions_batch': {
+      const p = payload as ReturnType<typeof createContributionsBatchPayloadSchema.parse>;
+      const lines: string[] = [];
+      let total = 0;
+      for (const item of p.contributions) {
+        const member = await getMember(item.memberId);
+        total += item.amount;
+        lines.push(`${member.name} ${formatCurrency(item.amount)} (${formatDate(item.contributedDate)})`);
+      }
+      return `Create ${p.contributions.length} contributions (total ${formatCurrency(total)}): ${lines.join('; ')}`;
     }
     case 'update_contribution': {
       const p = payload as ReturnType<typeof updateContributionPayloadSchema.parse>;
@@ -184,6 +196,14 @@ export const proposeCreateContribution = async (
   rawPayload: unknown,
 ): Promise<ProposeResult> =>
   createPropose(requireSessionId(sessionId), memberId, isAdmin, 'create_contribution', rawPayload);
+
+export const proposeCreateContributionsBatch = async (
+  sessionId: number | undefined,
+  memberId: number,
+  isAdmin: boolean,
+  rawPayload: unknown,
+): Promise<ProposeResult> =>
+  createPropose(requireSessionId(sessionId), memberId, isAdmin, 'create_contributions_batch', rawPayload);
 
 export const proposeUpdateContribution = async (
   sessionId: number | undefined,

@@ -46,6 +46,9 @@ const formatExecutedLine = (summary: string, result: unknown): string => {
     if (typeof record.contributionId === 'number') {
       return `- ${summary} → contribution #${record.contributionId}`;
     }
+    if (typeof record.count === 'number' && Array.isArray(record.contributions)) {
+      return `- ${summary} → ${record.count} contributions recorded`;
+    }
     if (typeof record.causeId === 'number') {
       return `- ${summary} → cause #${record.causeId}`;
     }

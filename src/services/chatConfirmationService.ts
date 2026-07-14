@@ -78,6 +78,16 @@ export const buildConfirmationReply = (outcome: PendingActionOutcome): string =>
     switch (result.actionType) {
       case 'create_contribution':
         return `Done. Contribution #${details.contributionId} recorded successfully. If you have more entries to add, ask me to queue the next one.`;
+      case 'create_contributions_batch': {
+        const count = typeof details.count === 'number' ? details.count : 0;
+        const ids = Array.isArray(details.contributions)
+          ? (details.contributions as Array<{ contributionId?: number }>)
+              .map((c) => c.contributionId)
+              .filter((id): id is number => typeof id === 'number')
+          : [];
+        const idPart = ids.length > 0 ? ` (#${ids.join(', #')})` : '';
+        return `Done. ${count} contribution${count === 1 ? '' : 's'} recorded successfully${idPart}.`;
+      }
       case 'update_contribution':
         return `Done. Contribution #${details.contributionId} has been updated.`;
       case 'delete_contribution':

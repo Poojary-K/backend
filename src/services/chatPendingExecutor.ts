@@ -18,6 +18,7 @@ import {
   validatePendingPayload,
   type PendingActionType,
   createContributionPayloadSchema,
+  createContributionsBatchPayloadSchema,
   updateContributionPayloadSchema,
   deleteContributionPayloadSchema,
   createCausePayloadSchema,
@@ -130,6 +131,32 @@ const dispatchAction = async (pending: ChatPendingTaskRecord, actorMemberId: num
         contributedDate: payload.contributedDate,
       });
       return { contributionId: contribution.contributionid, memberId: contribution.memberid, amount: contribution.amount };
+    }
+    case 'create_contributions_batch': {
+      const payload = validatePendingPayload('create_contributions_batch', pending.payload) as z.infer<
+        typeof createContributionsBatchPayloadSchema
+      >;
+      // Pre-validate every member before writing any rows.
+      for (const item of payload.contributions) {
+        const member = await findMemberById(item.memberId);
+        if (!member) {
+          throw new HttpError(`Member with ID ${item.memberId} not found`, 404);
+        }
+      }
+      const created: Array<{ contributionId: number; memberId: number; amount: string }> = [];
+      for (const item of payload.contributions) {
+        const contribution = await recordContribution({
+          memberId: item.memberId,
+          amount: item.amount,
+          contributedDate: item.contributedDate,
+        });
+        created.push({
+          contributionId: contribution.contributionid,
+          memberId: contribution.memberid,
+          amount: contribution.amount,
+        });
+      }
+      return { count: created.length, contributions: created };
     }
     case 'update_contribution': {
       const payload = validatePendingPayload('update_contribution', pending.payload) as z.infer<

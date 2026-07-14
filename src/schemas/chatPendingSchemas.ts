@@ -25,6 +25,7 @@ const parseDateString = (value: string, ctx: z.RefinementCtx, field: string): Da
 
 export const PENDING_ACTION_TYPES = [
   'create_contribution',
+  'create_contributions_batch',
   'update_contribution',
   'delete_contribution',
   'create_cause',
@@ -53,6 +54,19 @@ export const createContributionPayloadSchema = z.object({
   memberId: z.number().int().positive(),
   amount: z.number().positive(),
   contributedDate: z.string().transform((value, ctx) => parseDateString(value, ctx, 'contributedDate')),
+});
+
+export const createContributionsBatchItemSchema = z.object({
+  memberId: z.number().int().positive(),
+  amount: z.number().positive(),
+  contributedDate: z.string().transform((value, ctx) => parseDateString(value, ctx, 'contributedDate')),
+});
+
+export const createContributionsBatchPayloadSchema = z.object({
+  contributions: z
+    .array(createContributionsBatchItemSchema)
+    .min(2, { message: 'Batch requires at least 2 contributions; use create_contribution for a single entry' })
+    .max(50, { message: 'Batch supports at most 50 contributions' }),
 });
 
 export const updateContributionPayloadSchema = z.object({
@@ -115,6 +129,7 @@ export const deleteMemberPayloadSchema = z.object({
 
 export const PENDING_PAYLOAD_SCHEMAS: Record<PendingActionType, z.ZodType<unknown>> = {
   create_contribution: createContributionPayloadSchema,
+  create_contributions_batch: createContributionsBatchPayloadSchema,
   update_contribution: updateContributionPayloadSchema,
   delete_contribution: deleteContributionPayloadSchema,
   create_cause: createCausePayloadSchema,

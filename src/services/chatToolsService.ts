@@ -175,7 +175,7 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
     name: 'search_members',
     label: 'Searching members',
     description:
-      'Search members by name or email substring. USE BEFORE propose_create_contribution to resolve memberId. Returns memberId, name, email for each match.',
+      'Search members by name or email substring. USE BEFORE propose_create_contribution or propose_create_contributions to resolve memberId. Returns memberId, name, email for each match.',
     schema: z.object({ query: z.string().min(1), ...limitShape }),
     access: 'admin',
     category: 'read',
@@ -243,8 +243,9 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
     name: 'propose_create_contribution',
     label: 'Drafting contribution',
     description:
-      'USE THIS to queue a NEW member contribution (money received). Does NOT save to the database yet — creates a pending task the admin confirms in the UI. ' +
+      'USE THIS to queue a NEW member contribution (money received) for ONE person. Does NOT save to the database yet — creates a pending task the admin confirms in the UI. ' +
       'Required workflow: (1) search_members to obtain memberId, (2) get_current_date_ist if the user omitted the year, (3) call with memberId, amount (>0), contributedDate as YYYY-MM-DD. ' +
+      'For TWO OR MORE people in one request, use propose_create_contributions instead. ' +
       'Returns JSON with pending.pendingId and pending.summary on success. Only tell the user a pending task exists if pendingId is present in the tool response.',
     schema: z.object({
       memberId: z.number().int().positive(),
@@ -255,6 +256,30 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
     category: 'propose',
     execute: (args, ctx) =>
       pendingService.proposeCreateContribution(ctx.sessionId, ctx.memberId, ctx.isAdmin, args),
+  },
+  {
+    name: 'propose_create_contributions',
+    label: 'Drafting multiple contributions',
+    description:
+      'USE THIS to queue NEW contributions for MULTIPLE members in ONE pending task (2–50 people). Does NOT save yet — admin confirms once in the UI and all entries are created. ' +
+      'Required workflow: (1) search_members for each person to get memberIds, (2) get_current_date_ist if any date lacks a year, (3) call with contributions array of {memberId, amount, contributedDate YYYY-MM-DD}. ' +
+      'For a SINGLE person use propose_create_contribution instead. Returns JSON with pending.pendingId and pending.summary on success.',
+    schema: z.object({
+      contributions: z
+        .array(
+          z.object({
+            memberId: z.number().int().positive(),
+            amount: z.number().positive(),
+            contributedDate: z.string().describe('Date of contribution (YYYY-MM-DD)'),
+          }),
+        )
+        .min(2)
+        .max(50),
+    }),
+    access: 'admin',
+    category: 'propose',
+    execute: (args, ctx) =>
+      pendingService.proposeCreateContributionsBatch(ctx.sessionId, ctx.memberId, ctx.isAdmin, args),
   },
   {
     name: 'propose_update_contribution',
@@ -386,6 +411,18 @@ const TOOL_DEFINITIONS: ChatToolDefinition[] = [
       amount: z.number().positive().optional(),
       contributedDate: z.string().optional(),
       contributionId: z.number().int().positive().optional(),
+      contributions: z
+        .array(
+          z.object({
+            memberId: z.number().int().positive(),
+            amount: z.number().positive(),
+            contributedDate: z.string(),
+          }),
+        )
+        .min(2)
+        .max(50)
+        .optional()
+        .describe('Replace the full batch list when editing a multi-contribution pending task'),
       title: z.string().optional(),
       description: z.string().optional(),
       createdat: z.string().optional(),
@@ -524,6 +561,7 @@ const TOOL_NAME_PHRASES: Record<string, string> = {
   get_contribution_summary: 'contribution summary',
   get_cause_summary: 'cause summary',
   propose_create_contribution: 'contribution proposal',
+  propose_create_contributions: 'contributions proposal',
   propose_update_contribution: 'contribution update',
   propose_delete_contribution: 'contribution deletion',
   propose_create_cause: 'cause proposal',
